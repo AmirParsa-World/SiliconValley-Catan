@@ -50,6 +50,26 @@ public class Player {
 
     }
 
+    //TODO: give 1 point for the longest partnership (at least must be 3 partnerships)
+
+    public int countPlayerPoint() {
+
+        int totalPoint = (this.role != null) ? -1 : 0; // shorter and easier.
+//        int totalPoints;
+//        if (this.role != null) {
+//            totalPoints = -1;
+//        } else {
+//            totalPoints = 0;
+//        }
+
+        for (Structure structure : this.structures) { // we handle the outOfBoundException by writing this form.
+            totalPoint += structure.getPoint();
+        }
+
+        return totalPoint;
+    }
+
+// Finish TODO.
 
 
 
