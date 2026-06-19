@@ -6,5 +6,10 @@ public class Unicorn extends Structure {
         super(owner, sector);
     }
 
+    @Override
+    public int getPoint() {
+        return 2;
+    }
+
     // we'll have some special behaviors...
 }

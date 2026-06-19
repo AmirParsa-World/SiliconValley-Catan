@@ -6,5 +6,10 @@ public class MVP extends Structure {
         super(owner, sector);
     }
 
+    @Override
+    public int getPoint() {
+        return 1;
+    }
+
     // we'll have some special behaviors...
 }
