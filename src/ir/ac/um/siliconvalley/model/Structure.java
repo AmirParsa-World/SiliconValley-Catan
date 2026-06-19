@@ -14,6 +14,9 @@ public abstract class Structure {
 
     }
 
+    public abstract int getPoint();// int the subclasses will override.
+
+
     public Player getOwner() {
         return this.owner;
     }
@@ -21,5 +24,6 @@ public abstract class Structure {
     public Sector getSector() {
         return this.sector;
     }
+
 
 }
