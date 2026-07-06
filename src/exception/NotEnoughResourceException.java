@@ -1,4 +1,4 @@
-package ir.ac.um.siliconvalley.exception;
+package exception;
 
 public class NotEnoughResourceException extends RuntimeException {
 

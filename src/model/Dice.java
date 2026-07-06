@@ -1,4 +1,4 @@
-package ir.ac.um.siliconvalley.model;
+package model;
 
 import java.util.Random;
 

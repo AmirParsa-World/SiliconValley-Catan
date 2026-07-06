@@ -1,6 +1,6 @@
-package ir.ac.um.siliconvalley.model;
+package model;
 
-import ir.ac.um.siliconvalley.exception.NotEnoughResourceException;
+import exception.NotEnoughResourceException;
 
 import java.util.ArrayList;
 import java.util.HashMap;

@@ -1,4 +1,4 @@
-package ir.ac.um.siliconvalley.model;
+package model;
 
 public class Sector {
 
@@ -19,7 +19,7 @@ public class Sector {
 
 
     }
-    // hese are our getters.
+    // here are our getters.
     public ResourceType getResourceType(){
         return this.resourceType;
     }
