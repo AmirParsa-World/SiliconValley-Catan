@@ -2,10 +2,7 @@ package model;
 
 import exception.NotEnoughResourceException;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class Player {
 
@@ -23,7 +20,7 @@ public class Player {
         this.role = null;
 
         this.structures = new ArrayList<>();
-        this.wallet = new HashMap<>(); // now we created an object from Map class
+        this.wallet = new EnumMap<>(ResourceType.class); // now we created an object from Map class
                                        //( it's not the map(board) of the game)
 
         for (ResourceType type : ResourceType.values()) {

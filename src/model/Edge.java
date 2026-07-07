@@ -1,4 +1,4 @@
-package ir.ac.um.siliconvalley.model;
+package model;
 
 public class Edge {
 
@@ -7,8 +7,8 @@ public class Edge {
     private boolean partnership;
 
 
-    public Vertex(Player owner,
-                  boolean partnership) {
+    public Edge(Player owner,
+                boolean partnership) {
 
         this.owner = owner;
         this.partnership = partnership;
