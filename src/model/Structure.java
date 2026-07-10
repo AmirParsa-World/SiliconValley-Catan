@@ -4,13 +4,13 @@ public abstract class Structure {
 
     // general field for every structure.
     private final Player owner;
-    private final Sector sector;
+    private final Vertex location;
 
 
-    public Structure (Player owner, Sector sector) {
+    public Structure (Player owner, Vertex location) {
 
         this.owner = owner;
-        this.sector = sector;
+        this.location = location;
 
     }
 
@@ -21,8 +21,8 @@ public abstract class Structure {
         return this.owner;
     }
 
-    public Sector getSector() {
-        return this.sector;
+    public Vertex getLocation() {
+        return this.location;
     }
 
 
