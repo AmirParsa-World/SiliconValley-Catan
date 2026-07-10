@@ -2,8 +2,8 @@ package model;
 
 public class Unicorn extends Structure {
 
-    public Unicorn(Player owner, Sector sector) {
-        super(owner, sector);
+    public Unicorn(Player owner, Vertex vertex) {
+        super(owner, vertex);
     }
 
     @Override

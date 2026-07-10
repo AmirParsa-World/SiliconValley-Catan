@@ -2,8 +2,8 @@ package model;
 
 public class MVP extends Structure {
 
-    public MVP(Player owner, Sector sector) {
-        super(owner, sector);
+    public MVP(Player owner, Vertex vertex) {
+        super(owner, vertex);
     }
 
     @Override
