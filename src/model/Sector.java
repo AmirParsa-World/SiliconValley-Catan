@@ -11,6 +11,11 @@ public class Sector {
     private Vertex topLeft;
     private Vertex topRight;
 
+    public Vertex getBottomLeft() { return bottomLeft; }
+    public Vertex getBottomRight() { return bottomRight; }
+    public Vertex getTopLeft() { return topLeft; }
+    public Vertex getTopRight() { return topRight; }
+
     public Sector(ResourceType resourceType, int activationNumber) {
         this.resourceType = resourceType;
         this.activationNumber = activationNumber;

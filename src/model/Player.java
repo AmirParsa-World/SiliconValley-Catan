@@ -65,8 +65,11 @@ public class Player {
     }
 
     // world
+    // 🏆 Dynamic Victory Point Counter inside model/Player.java
     public int countPlayerPoint() {
-        int totalPoint = (this.role != null) ? -1 : 0;
+        // Penalty (-1) applies ONLY if a player explicitly picks a valid tech role card
+        int totalPoint = (this.role != null && this.role != FounderRole.NONE) ? -1 : 0;
+
         for (Structure structure : this.structures) {
             totalPoint += structure.getPoint();
         }
@@ -76,5 +79,24 @@ public class Player {
     @Override
     public String toString() {
         return name + " (" + color + ") | Points: " + countPlayerPoint() + " | Total Resources: " + getTotalResources();
+    }
+
+    public FounderRole getRole() { return this.role; }
+
+    public void setRole(FounderRole role) { this.role = role; }
+
+
+    // 💸 متد کمکی برای سوزاندن خودکار تعداد مشخصی کارت از ولت بازیکن
+    public void discardRandomResources(int amount) {
+        int discarded = 0;
+        while (discarded < amount && getTotalResources() > 0) {
+            for (ResourceType type : ResourceType.values()) {
+                if (getResource(type) > 0) {
+                    spendResource(type, 1);
+                    discarded++;
+                    if (discarded == amount) break;
+                }
+            }
+        }
     }
 }

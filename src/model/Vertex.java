@@ -32,4 +32,21 @@ public class Vertex {
             this.neighboringEdges.add(edge);
         }
     }
+    // بررسی اینکه آیا سازه‌ای روی این ورتکس هست یا نه
+    public boolean hasStructure() {
+        return this.structure != null;
+    }
+
+    // پیدا کردن ورتکس‌های همسایه از روی یال‌های متصل
+    public List<Vertex> getNeighbors() {
+        List<Vertex> neighbors = new ArrayList<>();
+        for (Edge edge : neighboringEdges) {
+            if (edge.getU() == this) {
+                neighbors.add(edge.getV());
+            } else if (edge.getV() == this) {
+                neighbors.add(edge.getU());
+            }
+        }
+        return neighbors;
+    }
 }
