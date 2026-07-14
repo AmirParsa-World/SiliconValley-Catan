@@ -1,4 +1,4 @@
-package ir.ac.um.siliconvalley.model;
+package model;
 
 public enum FounderRole {
     HACKER_CEO,
