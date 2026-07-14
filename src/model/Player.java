@@ -13,12 +13,14 @@ public class Player {
     private FounderRole role;
     private final Map<ResourceType, Integer> wallet;
     private final List<Structure> structures;
+    private boolean hasLongestNetwork;
 
     public Player(String name, String color) {
         this.name = name;
         this.color = color;
         this.role = null;
         this.structures = new ArrayList<>();
+        this.hasLongestNetwork = false;
 
         // Enum map: baran
         this.wallet = new EnumMap<>(ResourceType.class);
@@ -67,8 +69,12 @@ public class Player {
     // world
     // 🏆 Dynamic Victory Point Counter inside model/Player.java
     public int countPlayerPoint() {
-        // Penalty (-1) applies ONLY if a player explicitly picks a valid tech role card
         int totalPoint = (this.role != null && this.role != FounderRole.NONE) ? -1 : 0;
+
+        // اضافه کردن امتیاز جاده بلندتر
+        if (this.hasLongestNetwork) {
+            totalPoint += 2;
+        }
 
         for (Structure structure : this.structures) {
             totalPoint += structure.getPoint();
@@ -98,5 +104,10 @@ public class Player {
                 }
             }
         }
+    }
+
+
+    public void setHasLongestNetwork(boolean hasLongestNetwork) {
+        this.hasLongestNetwork = hasLongestNetwork;
     }
 }

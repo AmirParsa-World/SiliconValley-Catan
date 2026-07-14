@@ -2,7 +2,6 @@ package controller;
 
 import model.*;
 import exception.NotEnoughResourceException;
-import exception.StructurePlacementException;
 import exception.AlreadyRolledException;
 
 import java.util.ArrayList;
@@ -15,6 +14,11 @@ public class GameEngine {
     private int currentRound;
     private boolean hasRolledThisTurn;
 
+    // 🔄 فیلدهای مدیریت فاز رفت و برگشت (Snake Draft)
+    private GamePhase currentPhase;
+    private final List<Integer> setupOrder = new ArrayList<>();
+    private int setupStep = 0;
+
     // 🏗️ Constructor
     public GameEngine(List<Player> players, Market market) {
         this.players = players != null ? players : new ArrayList<>();
@@ -22,9 +26,35 @@ public class GameEngine {
         this.currentPlayerIndex = 0;
         this.currentRound = 1;
         this.hasRolledThisTurn = false;
+        this.currentPhase = GamePhase.SETUP; // بازی همیشه با فاز ست‌آپ شروع می‌شود
+
+        initializeSetupOrder();
     }
 
-    // 🎲 تاس ریختن قانونمند (جلوگیری از تاس ریختن مجدد در یک نوبت)
+    /**
+     * تولید لیست نوبت‌های فاز اول به صورت Snake Draft (رفت و برگشت)
+     * برای ۲ بازیکن: [0, 1, 1, 0]
+     * برای ۳ بازیکن: [0, 1, 2, 2, 1, 0]
+     */
+    private void initializeSetupOrder() {
+        setupOrder.clear();
+        int numberOfPlayers = players.size();
+        if (numberOfPlayers == 0) return;
+
+        // مسیر رفت
+        for (int i = 0; i < numberOfPlayers; i++) {
+            setupOrder.add(i);
+        }
+        // مسیر برگشت
+        for (int i = numberOfPlayers - 1; i >= 0; i--) {
+            setupOrder.add(i);
+        }
+
+        this.setupStep = 0;
+        this.currentPlayerIndex = setupOrder.get(0);
+    }
+
+    // 🎲 تاس ریختن قانونمند
     public int rollDice(Dice dice) {
         if (hasRolledThisTurn) {
             throw new AlreadyRolledException("Dear " + getCurrentPlayer().getName() + ", you have already rolled the dice in this turn!");
@@ -34,7 +64,7 @@ public class GameEngine {
         return rollResult;
     }
 
-    // 🤝 Decentralized Peer-to-Peer Free Trade Processing Contract
+    // 🤝 تجارت آزاد بازیکن با بازیکن
     public void executePeerTrade(Player sender, Player receiver,
                                  ResourceType offeredItem, int offeredAmount,
                                  ResourceType requestedItem, int requestedAmount) {
@@ -72,28 +102,60 @@ public class GameEngine {
         return hasRolledThisTurn;
     }
 
-    // 🔄 Manages turn rotation and triggers the 3-round stagnation tick on the Market
+    public GamePhase getCurrentPhase() {
+        return this.currentPhase;
+    }
+
+    // 🔄 مدیریت پویای نوبت‌ها برای هر دو فاز SETUP و NORMAL
     public void nextTurn() {
         if (players.isEmpty()) return;
 
-        Player activePlayer = getCurrentPlayer();
-        if (activePlayer.countPlayerPoint() >= 10) {
-            System.out.println("🏆 VICTORY! " + activePlayer.getName() + " reached 10 points and won the game!");
-            return;
+        if (currentPhase == GamePhase.SETUP) {
+            setupStep++;
+            // اگر هنوز در فاز اول بازی هستیم و مراحل رفت و برگشت تمام نشده است
+            if (setupStep < setupOrder.size()) {
+                currentPlayerIndex = setupOrder.get(setupStep);
+                System.out.println("🔄 Setup Turn shifted. Next draft belongs to: " + getCurrentPlayer().getName());
+            } else {
+                // انتقال خودکار به فاز عادی بازی پس از پایان دور رفت و برگشت اولیه
+                this.currentPhase = GamePhase.NORMAL;
+                this.currentPlayerIndex = 0; // فاز عادی از بازیکن اول شروع می‌شود
+                this.hasRolledThisTurn = false;
+                System.out.println("📢 Setup Phase completed! Transitioning to NORMAL phase.");
+                System.out.println("🔄 Normal Turn started. Current Player: " + getCurrentPlayer().getName());
+            }
+        } else if (currentPhase == GamePhase.NORMAL) {
+            Player activePlayer = getCurrentPlayer();
+
+            // چک کردن شرط پیروزی قبل از انتقال نوبت
+            if (activePlayer.countPlayerPoint() >= 10) {
+                this.currentPhase = GamePhase.FINISHED;
+                System.out.println("🏆 VICTORY! " + activePlayer.getName() + " reached 10 points and won the game!");
+                return;
+            }
+
+            // افزایش راند زمانی که نوبت از آخرین بازیکن به اولین بازیکن می‌رسد
+            if (currentPlayerIndex == players.size() - 1) {
+                market.incrementRoundTick();
+                currentRound++;
+            }
+
+            currentPlayerIndex = (currentPlayerIndex + 1) % players.size();
+            hasRolledThisTurn = false;
+
+            System.out.println("🏁 Turn passed. It is now " + getCurrentPlayer().getName() + "'s turn!");
+            checkVictoryCondition();
         }
-
-        if (currentPlayerIndex == players.size() - 1) {
-            market.incrementRoundTick();
-            currentRound++;
-        }
-
-        currentPlayerIndex = (currentPlayerIndex + 1) % players.size();
-        hasRolledThisTurn = false;
-
-        System.out.println("🏁 Turn passed. It is now " + getCurrentPlayer().getName() + "'s turn!");
     }
 
-    // 🚨 Handles resource checks when a 7 is rolled
+    private void checkVictoryCondition() {
+        if (getCurrentPlayer().countPlayerPoint() >= 10) {
+            this.currentPhase = GamePhase.FINISHED;
+            System.out.println("🏆 VICTORY! " + getCurrentPlayer().getName() + " reached 10+ points and won!");
+        }
+    }
+
+    // 🚨 مدیریت بحران مالیاتی (تاس ۷)
     public void triggerRegulatoryCrisis() {
         System.out.println("🚨 REGULATORY CRISIS TRIPPED!");
 
@@ -106,7 +168,7 @@ public class GameEngine {
 
                 System.out.println("💸 TAXED: " + player.getName() + " must discard " + cardsToDiscard + " cards!");
 
-                // کسر خودکار کارت‌ها برای سناریوی تست و بک‌اند بدون گرافیک
+                // کسر خودکار کارت‌ها برای سناریوی تست بک‌اند
                 player.discardRandomResources(cardsToDiscard);
                 System.out.println("📉 [Backend Auto-Discard] " + player.getName() + "'s hand reduced after penalty.");
 
@@ -118,11 +180,9 @@ public class GameEngine {
 
     // 🏗️ بررسی قانون فاصله ۲ یال برای ساخت سازه جدید
     public boolean isValidStructurePlacement(Vertex targetVertex) {
-        // ۱. بررسی اینکه آیا خود ورتکس از قبل سازه دارد یا خیر
         if (targetVertex.hasStructure()) {
             return false;
         }
-        // ۲. بررسی اینکه آیا همسایه‌های مستقیم (۱ قدم فاصله) سازه دارند یا خیر
         for (Vertex neighbor : targetVertex.getNeighbors()) {
             if (neighbor.hasStructure()) {
                 return false;
@@ -130,7 +190,6 @@ public class GameEngine {
         }
         return true;
     }
-
 
     private void promptPlayerForDiscard(Player player, int cardsToDiscard) {
         System.out.println("[UI Stub] Waiting for " + player.getName() + " to drop " + cardsToDiscard + " cards.");
@@ -175,13 +234,11 @@ public class GameEngine {
         }
     }
 
-
     // 🕸️ محاسبه طول بلندترین شبکه جاده‌های متصل برای یک بازیکن (الگوریتم DFS)
     public int calculateLongestNetwork(Player player, Map gameMap) {
         int maxLength = 0;
         List<Edge> playerEdges = new ArrayList<>();
 
-        // پیدا کردن تمام یال‌هایی که متعلق به این بازیکن هستند
         for (int r = 0; r < 6; r++) {
             for (int c = 0; c < 6; c++) {
                 Vertex v = gameMap.getVertices()[r][c];
@@ -193,7 +250,6 @@ public class GameEngine {
             }
         }
 
-        // اجرای DFS از هر یال برای پیدا کردن طولانی‌ترین مسیر بدون تکرار یال
         for (Edge startEdge : playerEdges) {
             List<Edge> visited = new ArrayList<>();
             maxLength = Math.max(maxLength, dfsLongestPath(startEdge, player, visited, playerEdges));
@@ -205,12 +261,10 @@ public class GameEngine {
         visited.add(current);
         int maxDepth = 0;
 
-        // بررسی گره‌های دو سر یال فعلی برای ادامه دادن مسیر جاده‌ها
         Vertex[] vertices = {current.getU(), current.getV()};
         for (Vertex v : vertices) {
             for (Edge nextEdge : v.getNeighboringEdges()) {
                 if (allPlayerEdges.contains(nextEdge) && !visited.contains(nextEdge)) {
-                    // شبیه‌سازی کپی مسیر برای شاخه‌های متفرقه
                     List<Edge> branchVisited = new ArrayList<>(visited);
                     maxDepth = Math.max(maxDepth, dfsLongestPath(nextEdge, player, branchVisited, allPlayerEdges));
                 }
@@ -219,10 +273,11 @@ public class GameEngine {
         return 1 + maxDepth;
     }
 
-    // 🏆 متد تخصصی تخصیص پویای امتیاز بلندترین زنجیره جاده (Longest Network Award)
+    // 🏆 متد تخصصی تخصیص پویای امتیاز بلندترین زنجیره جاده
+// 🏆 متد تخصصی تخصیص پویای امتیاز بلندترین زنجیره جاده
     public void updateLongestNetworkAward(Map gameMap) {
         Player currentWinner = null;
-        int maxLen = 2; // حداقل طول زنجیره طبق داک باید ۳ باشد (بزرگتر از ۲)
+        int maxLen = 2; // حداقل طول زنجیره باید بزرگتر از ۲ باشد
 
         for (Player p : players) {
             int len = calculateLongestNetwork(p, gameMap);
@@ -232,15 +287,17 @@ public class GameEngine {
             }
         }
 
-        // چاپ خروجی برای صحت‌سنجی در تست‌ها
+        // 🌟 مقداردهی فیلد برای همه بازیکنان (برنده true و بقیه false)
+        for (Player p : players) {
+            p.setHasLongestNetwork(p.equals(currentWinner));
+        }
+
         if (currentWinner != null) {
             System.out.println("👑 Longest Network belongs to " + currentWinner.getName() + " with length " + maxLen);
         }
     }
-
-    // 🏢 ۱. ساخت محصول اولیه (MVP) با فرمول کامل هزینه‌های داک
+    // 🏢 ساخت محصول اولیه (MVP)
     public void buildMVP(Player player, Vertex targetVertex) {
-        // هزینه MVP: ۱ سرمایه، ۱ استعداد، ۱ کلاود، ۱ دیتا
         if (player.getResource(ResourceType.CAPITAL) < 1 || player.getResource(ResourceType.TALENT) < 1 ||
                 player.getResource(ResourceType.CLOUD) < 1 || player.getResource(ResourceType.DATA) < 1) {
             throw new NotEnoughResourceException(player.getName() + " lacks resources for MVP! (Needs: 1 Capital, 1 Talent, 1 Cloud, 1 Data)");
@@ -250,7 +307,6 @@ public class GameEngine {
             throw new exception.InvalidPlacementException("Violation of Distance Rule! Too close to another structure.");
         }
 
-        // کسر هزینه
         player.spendResource(ResourceType.CAPITAL, 1);
         player.spendResource(ResourceType.TALENT, 1);
         player.spendResource(ResourceType.CLOUD, 1);
@@ -264,13 +320,12 @@ public class GameEngine {
         System.out.println("🏢 SUCCESS: " + player.getName() + " built an MVP on Vertex!");
     }
 
-    // 🦄 ۲. ارتقای MVP به Unicorn با اعمال تخفیف نقش CTO
+    // 🦄 ارتقای MVP به Unicorn
     public void upgradeToUnicorn(Player player, Vertex targetVertex) {
         if (!targetVertex.hasStructure() || !(targetVertex.getStructure() instanceof MVP) || !targetVertex.getOwner().equals(player)) {
             throw new exception.InvalidPlacementException("You can only upgrade your own MVP!");
         }
 
-        // اعمال قانون تخفیف نقش CTO: ۱ کلاود کمتر نیاز دارد
         int cloudCost = (player.getRole() == FounderRole.GURU_CTO) ? 1 : 2;
         int dataCost = 3;
 
@@ -278,11 +333,9 @@ public class GameEngine {
             throw new NotEnoughResourceException(player.getName() + " lacks resources for Unicorn! (Needs: 3 Data, " + cloudCost + " Cloud)");
         }
 
-        // کser منابع
         player.spendResource(ResourceType.DATA, dataCost);
         player.spendResource(ResourceType.CLOUD, cloudCost);
 
-        // حذف MVP قدیمی و جایگزینی با Unicorn
         player.getStructures().remove(targetVertex.getStructure());
         Unicorn unicorn = new Unicorn(player, targetVertex);
         targetVertex.setStructure(unicorn);
@@ -291,7 +344,7 @@ public class GameEngine {
         System.out.println("🦄 SUCCESS: " + player.getName() + " upgraded an MVP to Unicorn!");
     }
 
-    // 🤝 ۳. ساخت قرارداد همکاری (Partnership) روی یال با قانون اتصال
+    // 🤝 ساخت قرارداد همکاری (Partnership)
     public void buildPartnership(Player player, Edge targetEdge) {
         if (targetEdge.getOwner() != null) {
             throw new exception.InvalidPlacementException("This edge is already claimed!");
@@ -301,18 +354,15 @@ public class GameEngine {
             throw new NotEnoughResourceException(player.getName() + " lacks resources for Partnership! (Needs: 1 Capital, 1 Patent)");
         }
 
-        // قانون اتصال: بررسی اینکه آیا یال به جاده یا ساختمانی از همین بازیکن وصل است یا خیر
         boolean isConnected = false;
         Vertex u = targetEdge.getU();
         Vertex v = targetEdge.getV();
 
-        // چک کردن گره u و یال‌های متصل به آن
         if (u.getOwner() != null && u.getOwner().equals(player)) isConnected = true;
         for (Edge e : u.getNeighboringEdges()) {
             if (e.getOwner() != null && e.getOwner().equals(player)) isConnected = true;
         }
 
-        // چک کردن گره v و یال‌های متصل به آن
         if (v.getOwner() != null && v.getOwner().equals(player)) isConnected = true;
         for (Edge e : v.getNeighboringEdges()) {
             if (e.getOwner() != null && e.getOwner().equals(player)) isConnected = true;
@@ -330,11 +380,10 @@ public class GameEngine {
         System.out.println("🤝 SUCCESS: " + player.getName() + " established a Partnership!");
     }
 
-    // 🚨 ۴. بررسی محدودیت جابجایی مهره بازرس (Auditor) طبق بند ۲ بخش ۷ داک
+    // 🚨 حرکت دادن مهره بازرس (Auditor)
     public void moveAuditor(Player rollingPlayer, int targetRow, int targetCol, Map gameMap) {
         Sector targetSector = gameMap.getSectors()[targetRow][targetCol];
 
-        // آیا کلاً سکتور صاحب‌داری روی کل مپ وجود دارد؟
         boolean anySectorHasPlayerCompany = false;
         for (Sector[] row : gameMap.getSectors()) {
             for (Sector sec : row) {
@@ -345,12 +394,10 @@ public class GameEngine {
             }
         }
 
-        // اگر سکتورهای صاحب‌دار وجود دارند، بازرس حتماً باید روی یکی از آن‌ها برود
         if (anySectorHasPlayerCompany && !hasPlayersOnSector(targetSector)) {
             throw new exception.InvalidAuditorPlacementException("You must place the Auditor on a sector that has at least one player's structure!");
         }
 
-        // برداشتن بازرس قدیمی و جابجایی آن
         for (Sector[] row : gameMap.getSectors()) {
             for (Sector sec : row) {
                 if (sec != null && sec.isBlocked()) {
@@ -372,9 +419,8 @@ public class GameEngine {
         return false;
     }
 
-    // 🚀 ۵. فاز راه‌اندازی شروع بازی (Setup Phase) برای قرار دادن سازه‌های اولیه رایگان
+    // 🚀 فاز راه‌اندازی شروع بازی (Setup Phase)
     public void setupPlaceMVPAndPartnership(Player player, Vertex vertex, Edge edge) {
-        // بدون کسر منابع و فاقد قانون اتصال جاده‌ها برای فاز استقرار اولیه مجانی
         if (!isValidStructurePlacement(vertex)) {
             throw new exception.InvalidPlacementException("Distance rule violated during setup phase!");
         }
@@ -389,5 +435,4 @@ public class GameEngine {
 
         System.out.println("📦 SETUP SUCCESS: " + player.getName() + " placed starting MVP & Partnership!");
     }
-
 }
