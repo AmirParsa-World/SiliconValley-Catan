@@ -7,10 +7,10 @@ import java.util.List;
 import java.util.Random;
 
 public class Map implements Serializable {
-    private static final int SECTOR_ROWS = 5;
-    private static final int SECTOR_COLS = 5;
-    private static final int VERTEX_ROWS = 6;
-    private static final int VERTEX_COLS = 6;
+    private final int sectorRows;
+    private final int sectorCols;
+    private final int vertexRows;
+    private final int vertexCols;
 
     private final Sector[][] sectors;
     private final Vertex[][] vertices;
@@ -19,19 +19,28 @@ public class Map implements Serializable {
     private static final long serialVersionUID = 1L;
 
     public Map() {
-        this.sectors = new Sector[SECTOR_ROWS][SECTOR_COLS];
-        this.vertices = new Vertex[VERTEX_ROWS][VERTEX_COLS];
+        this(5, 5); // basic map game.
+    }
+
+    public Map(int sectorRows, int sectorCols) {
+        this.sectorRows = sectorRows;
+        this.sectorCols = sectorCols;
+        this.vertexRows = sectorRows + 1;
+        this.vertexCols = sectorCols + 1;
+
+        this.sectors = new Sector[this.sectorRows][this.sectorCols];
+        this.vertices = new Vertex[this.vertexRows][this.vertexCols];
 
         initializeVertices();
         spawnAuditorAtRandom();
-        generateRandomSectors(); // Dynamic 4-6 allocator called here!
+        generateRandomSectors();
         initializeEdges();
         wireSectorsToVertices();
     }
 
     private void initializeVertices() {
-        for (int r = 0; r < VERTEX_ROWS; r++) {
-            for (int c = 0; c < VERTEX_COLS; c++) {
+        for (int r = 0; r < vertexRows; r++) {
+            for (int c = 0; c < vertexCols; c++) {
                 this.vertices[r][c] = new Vertex();
             }
         }
@@ -39,53 +48,63 @@ public class Map implements Serializable {
 
     private void spawnAuditorAtRandom() {
         Random random = new Random();
-        int randomRow = random.nextInt(SECTOR_ROWS);
-        int randomCol = random.nextInt(SECTOR_COLS);
+        int randomRow = random.nextInt(sectorRows);
+        int randomCol = random.nextInt(sectorCols);
         this.auditor = new Regulator(randomRow, randomCol);
     }
 
     private void generateRandomSectors() {
+        int totalSectors = sectorRows * sectorCols;
+        int activeSectors = totalSectors - 1; // یکی از خانه‌ها همیشه برای رگولاتور (بازرس) است
+
         List<ResourceType> resourcePool = new ArrayList<>();
 
-        // Base Allocation: Put exactly 4 of each active resource into the pool (4 * 5 = 20)
+        // ۵ منبع فعال بازی
         ResourceType[] activeTypes = {
                 ResourceType.TALENT, ResourceType.CAPITAL,
                 ResourceType.CLOUD, ResourceType.PATENT, ResourceType.DATA
         };
+
+        // ⚖️ محاسبه عادلانه سهم هر منبع بر اساس ابعاد نقشه
+        int baseCount = activeSectors / activeTypes.length; // سهم مساوی پایه
+        int remainder = activeSectors % activeTypes.length; // باقی‌مانده تقسیم برای توزیع رندوم
+
+        // ۱. اضافه کردن منابع پایه به استخر
         for (ResourceType type : activeTypes) {
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < baseCount; i++) {
                 resourcePool.add(type);
             }
         }
 
-        // Dynamic Balance Rule: remaining 4 slots randomized up to max of 6
-        Random random = new Random();
-        for (int i = 0; i < 4; i++) {
-            ResourceType luckyType = activeTypes[random.nextInt(activeTypes.length)];
-            while (Collections.frequency(resourcePool, luckyType) >= 6) {
-                luckyType = activeTypes[random.nextInt(activeTypes.length)];
-            }
-            resourcePool.add(luckyType);
+        // ۲. توزیع کاملاً عادلانه باقی‌مانده‌ها (به هر کدام حداکثر ۱ کارت اضافه می‌شود تا بالانس به هم نخورد)
+        List<ResourceType> shuffleTypes = new ArrayList<>(List.of(activeTypes));
+        Collections.shuffle(shuffleTypes);
+        for (int i = 0; i < remainder; i++) {
+            resourcePool.add(shuffleTypes.get(i));
         }
-        Collections.shuffle(resourcePool);
+        Collections.shuffle(resourcePool); // مخلوط کردن نهایی منابع
 
-        // Populate activation numbers (24 slots, excluding 7)
+
+        // 🎲 ۳. تولید داینامیک اعداد تاس بر اساس اولویت احتمالات ریاضی (بدون عدد ۷)
         List<Integer> numberPool = new ArrayList<>();
-        int[] baseNumbers = {2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 5, 6, 8, 9};
-        for (int num : baseNumbers) {
-            numberPool.add(num);
-        }
-        Collections.shuffle(numberPool);
+        // ترتیب اولویت بر اساس احتمال بالای تاس (ابتدا بهترین خانه‌ها مثل ۶ و ۸، سپس معمولی‌ها و در آخر ۲ و ۱۲)
+        int[] priorityNumbers = {6, 8, 5, 9, 4, 10, 3, 11, 2, 12};
 
+        for (int i = 0; i < activeSectors; i++) {
+            // استفاده از عملگر % برای چرخشِ عادلانه روی آرایه اولویت‌ها در هر ابعادی
+            numberPool.add(priorityNumbers[i % priorityNumbers.length]);
+        }
+        Collections.shuffle(numberPool); // مخلوط کردن نهایی اعداد تاس برای تصادفی شدن نقشه
+
+        // فرستادن اطلاعات برای چیدمان نهایی روی ماتریکس نقشه
         fillSectorMatrix(resourcePool, numberPool);
     }
-
     private void fillSectorMatrix(List<ResourceType> resourcePool, List<Integer> numberPool) {
         int regulatoryRow = this.auditor.getRow();
         int regulatoryCol = this.auditor.getCol();
 
-        for (int r = 0; r < SECTOR_ROWS; r++) {
-            for (int c = 0; c < SECTOR_COLS; c++) {
+        for (int r = 0; r < sectorRows; r++) {
+            for (int c = 0; c < sectorCols; c++) {
                 if (r == regulatoryRow && c == regulatoryCol) {
                     this.sectors[r][c] = new Sector(ResourceType.REGULATORY, 0);
                 } else {
@@ -98,18 +117,18 @@ public class Map implements Serializable {
     }
 
     private void initializeEdges() {
-        for (int r = 0; r < VERTEX_ROWS; r++) {
-            for (int c = 0; c < VERTEX_COLS; c++) {
+        for (int r = 0; r < vertexRows; r++) {
+            for (int c = 0; c < vertexCols; c++) {
                 Vertex currentVertex = this.vertices[r][c];
 
-                if (c < VERTEX_COLS - 1) {
+                if (c < vertexCols - 1) {
                     Vertex rightNeighbor = this.vertices[r][c + 1];
                     Edge horizontalEdge = new Edge(currentVertex, rightNeighbor);
                     currentVertex.addNeighboringEdge(horizontalEdge);
                     rightNeighbor.addNeighboringEdge(horizontalEdge);
                 }
 
-                if (r < VERTEX_ROWS - 1) {
+                if (r < vertexRows - 1) {
                     Vertex topNeighbor = this.vertices[r + 1][c];
                     Edge verticalEdge = new Edge(currentVertex, topNeighbor);
                     currentVertex.addNeighboringEdge(verticalEdge);
@@ -120,8 +139,8 @@ public class Map implements Serializable {
     }
 
     private void wireSectorsToVertices() {
-        for (int r = 0; r < SECTOR_ROWS; r++) {
-            for (int c = 0; c < SECTOR_COLS; c++) {
+        for (int r = 0; r < sectorRows; r++) {
+            for (int c = 0; c < sectorCols; c++) {
                 Sector sector = this.sectors[r][c];
 
                 Vertex bottomBl = this.vertices[r][c];

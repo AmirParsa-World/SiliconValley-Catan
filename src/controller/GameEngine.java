@@ -124,55 +124,53 @@ public class GameEngine implements Serializable {
         return this.currentPhase;
     }
 
+    private boolean checkVictoryCondition() {
+        Player activePlayer = getCurrentPlayer();
+        if (activePlayer.countPlayerPoint() >= 10) {
+            this.currentPhase = GamePhase.FINISHED;
+            log("🏆🏆🏆 VICTORY! " + activePlayer.getName() + " reached " + activePlayer.countPlayerPoint() + " points and won the game! 🏆🏆🏆");
+            return true; // 🏁 بله، بازیکن برنده شده است.
+        }
+        return false; // ❌ خیر، بازی هنوز ادامه دارد.
+    }
+
     // 🔄 مدیریت پویای نوبت‌ها برای هر دو فاز SETUP و NORMAL
     public void nextTurn() {
         if (players.isEmpty()) return;
 
         if (currentPhase == GamePhase.SETUP) {
             setupStep++;
-            // اگر هنوز در فاز اول بازی هستیم و مراحل رفت و برگشت تمام نشده است
             if (setupStep < setupOrder.size()) {
                 currentPlayerIndex = setupOrder.get(setupStep);
-                log("🔄 Setup Turn: Next draft belongs to " + getCurrentPlayer().getName());            } else {
-                // انتقال خودکار به فاز عادی بازی پس از پایان دور رفت و برگشت اولیه
+                log("🔄 Setup Turn: Next draft belongs to " + getCurrentPlayer().getName());
+            } else {
                 this.currentPhase = GamePhase.NORMAL;
-                this.currentPlayerIndex = 0; // فاز عادی از بازیکن اول شروع می‌شود
+                this.currentPlayerIndex = 0;
                 this.hasRolledThisTurn = false;
                 log("📢 Setup Phase completed! Transitioning to NORMAL phase.");
                 log("🏁 Turn started: Current Player is " + getCurrentPlayer().getName());
             }
         } else if (currentPhase == GamePhase.NORMAL) {
-            Player activePlayer = getCurrentPlayer();
 
-            // چک کردن شرط پیروزی قبل از انتقال نوبت
-            if (activePlayer.countPlayerPoint() >= 10) {
-                this.currentPhase = GamePhase.FINISHED;
-                System.out.println("🏆 VICTORY! " + activePlayer.getName() + " reached 10 points and won the game!");
+            // 🎯 اینجا از متد بولین استفاده می‌کنیم:
+            // اگر متد مقدار true برگرداند (یعنی بازی تمام شده)، بلافاصله متد را خاتمه می‌دهیم (return)
+            if (checkVictoryCondition()) {
                 return;
             }
 
-            // افزایش راند زمانی که نوبت از آخرین بازیکن به اولین بازیکن می‌رسد
+            // اگر بازی تمام نشده بود، کد به راهش ادامه می‌دهد و نوبت را منتقل می‌کند:
             if (currentPlayerIndex == players.size() - 1) {
                 market.incrementRoundTick();
                 currentRound++;
-                log("📅 Round " + currentRound + " has started!"); // 📝 ثبت لاگ راند جدید
+                log("📅 Round " + currentRound + " has started!");
             }
 
             currentPlayerIndex = (currentPlayerIndex + 1) % players.size();
             hasRolledThisTurn = false;
 
-            System.out.println("🏁 Turn passed. It is now " + getCurrentPlayer().getName() + "'s turn!");
-            checkVictoryCondition();
+            log("🏁 Turn passed. It is now " + getCurrentPlayer().getName() + "'s turn!");
         }
     }
-
-    private void checkVictoryCondition() {
-        if (getCurrentPlayer().countPlayerPoint() >= 10) {
-            this.currentPhase = GamePhase.FINISHED;
-            System.out.println("🏆 VICTORY! " + getCurrentPlayer().getName() + " reached 10+ points and won!");
-        }
-    }
-
     // 🚨 مدیریت بحران مالیاتی (تاس ۷)
     public void triggerRegulatoryCrisis() {
 
@@ -224,7 +222,7 @@ public class GameEngine implements Serializable {
             return;
         }
 
-        System.out.println("🎲 Dice rolled: " + rollValue + ". Distributing resources...");
+        log("🎲 Dice rolled: " + rollValue + ". Distributing resources...");
 
         for (Sector[] row : gameMap.getSectors()) {
             for (Sector sector : row) {
@@ -244,7 +242,7 @@ public class GameEngine implements Serializable {
                             int yield = (vertex.getStructure().getPoint() == 2) ? 2 : 1;
 
                             owner.addResource(resource, yield);
-                            System.out.println("💎 YIELD: Player " + owner.getName() + " received " + yield + " " + resource + " from sector (" + resource + " - " + rollValue + ")");
+                            log("💎 YIELD: Player " + owner.getName() + " received " + yield + " " + resource + " from sector (" + resource + " - " + rollValue + ")");
                         }
                     }
                 }
@@ -256,9 +254,11 @@ public class GameEngine implements Serializable {
     public int calculateLongestNetwork(Player player, Map gameMap) {
         int maxLength = 0;
         List<Edge> playerEdges = new ArrayList<>();
+        int vertexRows = gameMap.getVertices().length;
+        int vertexCols = gameMap.getVertices()[0].length;
 
-        for (int r = 0; r < 6; r++) {
-            for (int c = 0; c < 6; c++) {
+        for (int r = 0; r < vertexRows; r++) {
+            for (int c = 0; c < vertexCols; c++) {
                 Vertex v = gameMap.getVertices()[r][c];
                 for (Edge edge : v.getNeighboringEdges()) {
                     if (edge.getOwner() != null && edge.getOwner().equals(player) && !playerEdges.contains(edge)) {
@@ -267,7 +267,6 @@ public class GameEngine implements Serializable {
                 }
             }
         }
-
         for (Edge startEdge : playerEdges) {
             List<Edge> visited = new ArrayList<>();
             maxLength = Math.max(maxLength, dfsLongestPath(startEdge, player, visited, playerEdges));
@@ -311,7 +310,7 @@ public class GameEngine implements Serializable {
         }
 
         if (currentWinner != null) {
-            System.out.println("👑 Longest Network belongs to " + currentWinner.getName() + " with length " + maxLen);
+            log("👑 Longest Network belongs to " + currentWinner.getName() + " with length " + maxLen);
         }
     }
     // 🏢 ساخت محصول اولیه (MVP)
