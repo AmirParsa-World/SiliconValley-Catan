@@ -32,3 +32,4 @@ bin/
 AP_Project.pdf
 .idea
 test
+*.dat
