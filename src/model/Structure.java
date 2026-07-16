@@ -1,10 +1,14 @@
 package model;
 
-public abstract class Structure {
+import java.io.Serializable;
+
+public abstract class Structure implements Serializable {
 
     // general field for every structure.
     private final Player owner;
     private final Vertex location;
+    private static final long serialVersionUID = 1L;
+
 
 
     public Structure (Player owner, Vertex location) {

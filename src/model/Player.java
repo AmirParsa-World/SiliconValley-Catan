@@ -1,12 +1,14 @@
 package model;
 
 import exception.NotEnoughResourceException;
+
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
-public class Player {
+public class Player implements Serializable {
 
     private final String name;
     private final String color;
@@ -14,6 +16,8 @@ public class Player {
     private final Map<ResourceType, Integer> wallet;
     private final List<Structure> structures;
     private boolean hasLongestNetwork;
+
+    private static final long serialVersionUID = 1L;
 
     public Player(String name, String color) {
         this.name = name;
@@ -109,5 +113,10 @@ public class Player {
 
     public void setHasLongestNetwork(boolean hasLongestNetwork) {
         this.hasLongestNetwork = hasLongestNetwork;
+    }
+
+    // داخل کلاس Player.java این متد را اضافه کن
+    public boolean isHasLongestNetwork() {
+        return this.hasLongestNetwork;
     }
 }

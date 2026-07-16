@@ -1,11 +1,12 @@
 package model;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
-public class Map {
+public class Map implements Serializable {
     private static final int SECTOR_ROWS = 5;
     private static final int SECTOR_COLS = 5;
     private static final int VERTEX_ROWS = 6;
@@ -14,6 +15,8 @@ public class Map {
     private final Sector[][] sectors;
     private final Vertex[][] vertices;
     private Regulator auditor;
+
+    private static final long serialVersionUID = 1L;
 
     public Map() {
         this.sectors = new Sector[SECTOR_ROWS][SECTOR_COLS];

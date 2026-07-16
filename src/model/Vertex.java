@@ -1,13 +1,16 @@
 package model;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Vertex {
+public class Vertex implements Serializable {
 
     private Player owner;
     private Structure structure; // Dynamic reference to MVP/Unicorn
     private final List<Edge> neighboringEdges; // Maximum of 4 paths
+
+    private static final long serialVersionUID = 1L;
 
     // at the beginning of the game, all vertices must be null; then we set them with their setter
     //If needed, it's definitely possible, but not for all.

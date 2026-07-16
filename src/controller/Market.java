@@ -4,10 +4,12 @@ import exception.NotEnoughResourceException;
 import model.Player;
 import model.ResourceType;
 import model.FounderRole;
+
+import java.io.Serializable;
 import java.util.EnumMap;
 import java.util.Map;
 
-public class Market {
+public class Market implements Serializable {
     private static final int INITIAL_PRICE = 4;
     private static final int MIN_PRICE = 2;
     private static final int MAX_PRICE = 6;
@@ -15,6 +17,8 @@ public class Market {
 
     private final Map<ResourceType, Integer> currentPrices;
     private final Map<ResourceType, Integer> stagnationTrackers;
+
+    private static final long serialVersionUID = 1L;
 
     public Market() {
         this.currentPrices = new EnumMap<>(ResourceType.class);

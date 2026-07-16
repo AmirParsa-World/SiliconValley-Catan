@@ -4,10 +4,11 @@ import model.*;
 import exception.NotEnoughResourceException;
 import exception.AlreadyRolledException;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class GameEngine {
+public class GameEngine implements Serializable {
     private final List<Player> players;
     private final Market market;
     private int currentPlayerIndex;
@@ -18,6 +19,13 @@ public class GameEngine {
     private GamePhase currentPhase;
     private final List<Integer> setupOrder = new ArrayList<>();
     private int setupStep = 0;
+
+    //needed dor save and load the game.
+    private static final long serialVersionUID = 1L;
+
+    //needed for giva a log about gameFlow
+    private final List<String> gameLog = new ArrayList<>();
+
 
     // 🏗️ Constructor
     public GameEngine(List<Player> players, Market market) {
@@ -61,6 +69,10 @@ public class GameEngine {
         }
         int rollResult = dice.roll();
         hasRolledThisTurn = true;
+
+        // 📝 ثبت لاگ تاس
+        log(getCurrentPlayer().getName() + " rolled a " + rollResult + " 🎲");
+
         return rollResult;
     }
 
@@ -87,6 +99,12 @@ public class GameEngine {
         sender.addResource(requestedItem, requestedAmount);
 
         System.out.println("🔄 TRANSACTION SUCCESS: " + sender.getName() + " traded with " + receiver.getName());
+
+        // در انتهای متد و قبل از پرانتز بسته، این لاگ را اضافه کن:
+        log("🔄 TRADE: " + sender.getName() + " traded with " + receiver.getName() +
+                " (Offered: " + offeredAmount + " " + offeredItem + " | Requested: " + requestedAmount + " " + requestedItem + ")");
+
+
     }
 
     public Player getCurrentPlayer() {
@@ -115,14 +133,13 @@ public class GameEngine {
             // اگر هنوز در فاز اول بازی هستیم و مراحل رفت و برگشت تمام نشده است
             if (setupStep < setupOrder.size()) {
                 currentPlayerIndex = setupOrder.get(setupStep);
-                System.out.println("🔄 Setup Turn shifted. Next draft belongs to: " + getCurrentPlayer().getName());
-            } else {
+                log("🔄 Setup Turn: Next draft belongs to " + getCurrentPlayer().getName());            } else {
                 // انتقال خودکار به فاز عادی بازی پس از پایان دور رفت و برگشت اولیه
                 this.currentPhase = GamePhase.NORMAL;
                 this.currentPlayerIndex = 0; // فاز عادی از بازیکن اول شروع می‌شود
                 this.hasRolledThisTurn = false;
-                System.out.println("📢 Setup Phase completed! Transitioning to NORMAL phase.");
-                System.out.println("🔄 Normal Turn started. Current Player: " + getCurrentPlayer().getName());
+                log("📢 Setup Phase completed! Transitioning to NORMAL phase.");
+                log("🏁 Turn started: Current Player is " + getCurrentPlayer().getName());
             }
         } else if (currentPhase == GamePhase.NORMAL) {
             Player activePlayer = getCurrentPlayer();
@@ -138,6 +155,7 @@ public class GameEngine {
             if (currentPlayerIndex == players.size() - 1) {
                 market.incrementRoundTick();
                 currentRound++;
+                log("📅 Round " + currentRound + " has started!"); // 📝 ثبت لاگ راند جدید
             }
 
             currentPlayerIndex = (currentPlayerIndex + 1) % players.size();
@@ -157,7 +175,8 @@ public class GameEngine {
 
     // 🚨 مدیریت بحران مالیاتی (تاس ۷)
     public void triggerRegulatoryCrisis() {
-        System.out.println("🚨 REGULATORY CRISIS TRIPPED!");
+
+        log("🚨 REGULATORY CRISIS TRIPPED! Tax authorities are auditing players..."); // 📝 ثبت لاگ بحران
 
         for (Player player : players) {
             int holdingLimit = (player.getRole() == FounderRole.VC_FUNDED) ? 9 : 7;
@@ -166,8 +185,7 @@ public class GameEngine {
             if (totalCards > holdingLimit) {
                 int cardsToDiscard = totalCards / 2;
 
-                System.out.println("💸 TAXED: " + player.getName() + " must discard " + cardsToDiscard + " cards!");
-
+                log("💸 TAXED: " + player.getName() + " had " + totalCards + " cards (limit is " + holdingLimit + ") and lost " + cardsToDiscard + " resources!");
                 // کسر خودکار کارت‌ها برای سناریوی تست بک‌اند
                 player.discardRandomResources(cardsToDiscard);
                 System.out.println("📉 [Backend Auto-Discard] " + player.getName() + "'s hand reduced after penalty.");
@@ -317,7 +335,7 @@ public class GameEngine {
         targetVertex.setStructure(newMvp);
         player.addStructure(newMvp);
 
-        System.out.println("🏢 SUCCESS: " + player.getName() + " built an MVP on Vertex!");
+        log("🏢 SUCCESS: " + player.getName() + " built an MVP on Vertex!");
     }
 
     // 🦄 ارتقای MVP به Unicorn
@@ -341,7 +359,7 @@ public class GameEngine {
         targetVertex.setStructure(unicorn);
         player.addStructure(unicorn);
 
-        System.out.println("🦄 SUCCESS: " + player.getName() + " upgraded an MVP to Unicorn!");
+        log("🦄 SUCCESS: " + player.getName() + " upgraded an MVP to Unicorn!");
     }
 
     // 🤝 ساخت قرارداد همکاری (Partnership)
@@ -377,7 +395,7 @@ public class GameEngine {
 
         targetEdge.setOwner(player);
         targetEdge.setPartnership(true);
-        System.out.println("🤝 SUCCESS: " + player.getName() + " established a Partnership!");
+      log("🤝 SUCCESS: " + player.getName() + " established a Partnership!");
     }
 
     // 🚨 حرکت دادن مهره بازرس (Auditor)
@@ -408,8 +426,7 @@ public class GameEngine {
 
         targetSector.block();
         gameMap.getAuditor().move(targetRow, targetCol);
-        System.out.println("🚨 AUDITOR MOVED: Placed on sector (" + targetRow + "," + targetCol + ")");
-    }
+        log("🕵️‍♂️ AUDITOR: Moved to sector (" + targetRow + "," + targetCol + ")");    }
 
     private boolean hasPlayersOnSector(Sector sector) {
         Vertex[] corners = {sector.getBottomLeft(), sector.getBottomRight(), sector.getTopLeft(), sector.getTopRight()};
@@ -433,6 +450,23 @@ public class GameEngine {
         edge.setOwner(player);
         edge.setPartnership(true);
 
-        System.out.println("📦 SETUP SUCCESS: " + player.getName() + " placed starting MVP & Partnership!");
+        log("📦 SETUP SUCCESS: " + player.getName() + " placed starting MVP & Partnership!");
+    }
+
+
+
+    // for giva a general log from the game flow, to knowing what has been happened.
+    // متد کمکی برای ثبت لاگ همراه با مهر زمانی (Timestamp)
+    public void log(String message) {
+        String timestamp = java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
+        String formattedLog = "[" + timestamp + "] " + message;
+
+        gameLog.add(formattedLog);
+        System.out.println(formattedLog); // برای اینکه خودت هم در کنسول خروجی را همزمان ببینی
+    }
+
+    // متد مخصوص باران (UI) برای دریافت لاگ‌ها
+    public List<String> getGameLog() {
+        return new ArrayList<>(this.gameLog); // برگشت دادن یک کپی برای حفظ امنیت داده‌ها
     }
 }

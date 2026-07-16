@@ -1,11 +1,15 @@
 package model;
 
-public class Edge {
+import java.io.Serial;
+import java.io.Serializable;
+
+public class Edge implements Serializable {
     private final Vertex u; // Connecting intersection 1
     private final Vertex v; // Connecting intersection 2
     private Player owner;
     private boolean partnership;
 
+    private static final long serialVersionUID = 1L;
     // The correct constructor for map initialization!
     public Edge(Vertex u, Vertex v) {
         this.u = u;

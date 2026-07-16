@@ -1,6 +1,9 @@
 package model;
 
-public class Sector {
+import java.io.Serial;
+import java.io.Serializable;
+
+public class Sector implements Serializable {
     private final ResourceType resourceType;
     private final int activationNumber;
     private boolean isBlocked;
@@ -10,6 +13,7 @@ public class Sector {
     private Vertex bottomRight;
     private Vertex topLeft;
     private Vertex topRight;
+    private static final long serialVersionUID = 1L;
 
     public Vertex getBottomLeft() { return bottomLeft; }
     public Vertex getBottomRight() { return bottomRight; }
