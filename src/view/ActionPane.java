@@ -135,20 +135,22 @@ public class ActionPane extends VBox {
 
     private void rollDice() {
         try {
-            int[] result = engine.rollDice();
-            int dice1 = result[0];
-            int dice2 = result[1];
-            int total = dice1 + dice2;
+            // ساخت یک شیء تاس و پاس دادن آن به متد قانونمند بک‌اَند
+            Dice dice = new Dice();
+            int total = engine.rollDice(dice);
+
+            // تفکیک مجموع برای نمایش بصری روی دو وجه متمایز گرافیکی در پنل باران
+            int dice1 = total / 2;
+            int dice2 = total - dice1;
 
             app.getDicePane().showDiceResult(dice1, dice2);
             statusLabel.setText("Rolled: " + total);
-            engine.distributeResources(total, gameMap);
+            engine.distributeResources(total);
             app.updateUI();
         } catch (Exception e) {
             statusLabel.setText("Error: " + e.getMessage());
         }
     }
-
     private void buildMVP() {
         app.getBoardCanvas().enterBuildMVPMode();
         statusLabel.setText("Click a vertex\nto place your MVP");

@@ -82,7 +82,7 @@ public class MainApp extends Application {
             players.add(player);
         }
 
-        engine = new GameEngine(players, market);
+        engine = new GameEngine(players, market, gameMap);
     }
 
     public void updateUI() {
