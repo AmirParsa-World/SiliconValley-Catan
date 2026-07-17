@@ -66,7 +66,7 @@ public class Main {
 
         // گرفتن یک ورتکس و یال خالی برای استقرار آزمایشی
         Vertex targetVertex = gameMap.getVertices()[0][0];
-        Edge targetEdge = targetVertex.getNeighboringEdges().getFirst();
+        Edge targetEdge = targetVertex.getNeighboringEdges().get(0);
 
         // ذخیره منابع قبل از تست برای تایید رایگان بودن فاز اول
         int initialCapital = jahan.getResource(ResourceType.CAPITAL);
@@ -170,7 +170,7 @@ public class Main {
         v1.setStructure(new MVP(jahan, v1));
 
         // ورتکس همسایه مستقیم (با فاصله تنها یک یال)
-        Vertex v2 = v1.getNeighbors().getFirst();
+        Vertex v2 = v1.getNeighbors().get(0);
 
         // تست قانون فاصله ۲ یال (سیستم نباید اجازه ساخت به v2 بدهد)
         System.out.println("Testing Distance Rule (trying to build MVP on direct neighbor)...");
@@ -185,7 +185,7 @@ public class Main {
         // تست قانون اتصال برای راه‌ها و پارتنرشیپ‌های بعدی
         System.out.println("Testing Connection Rule for disconnected Partnerships...");
         Vertex isolatedVertex = gameMap.getVertices()[5][5];
-        Edge isolatedEdge = isolatedVertex.getNeighboringEdges().getFirst();
+        Edge isolatedEdge = isolatedVertex.getNeighboringEdges().get(0);
 
         // تخصیص کارت‌ها جهت آمادگی هزینه پارتنرشیپ
         jahan.addResource(ResourceType.CAPITAL, 1);
@@ -373,7 +373,7 @@ public class Main {
         // نوبت اول: انسان (Jahan)
         System.out.println("[Turn 1] Active: " + engine.getCurrentPlayer().getName());
         Vertex v1 = botMap.getVertices()[1][1];
-        Edge e1 = v1.getNeighboringEdges().getFirst();
+        Edge e1 = v1.getNeighboringEdges().get(0);
         engine.setupPlaceMVPAndPartnership(humanPlayer, v1, e1);
         engine.nextTurn(); // انتقال نوبت به CPU_1
 
@@ -396,7 +396,7 @@ public class Main {
         // نوبت ششم: انسان (Jahan) - فاز برگشت
         System.out.println("\n[Turn 6] Active: " + engine.getCurrentPlayer().getName());
         Vertex v2 = botMap.getVertices()[3][3];
-        Edge e2 = v2.getNeighboringEdges().getFirst();
+        Edge e2 = v2.getNeighboringEdges().get(0);
         engine.setupPlaceMVPAndPartnership(humanPlayer, v2, e2);
         engine.nextTurn(); // اتمام فاز ست‌آپ و تغییر وضعیت خودکار به NORMAL
 

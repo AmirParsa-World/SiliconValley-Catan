@@ -2,6 +2,7 @@ package model;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -77,7 +78,7 @@ public class Map implements Serializable {
         }
 
         // ۲. توزیع کاملاً عادلانه باقی‌مانده‌ها (به هر کدام حداکثر ۱ کارت اضافه می‌شود تا بالانس به هم نخورد)
-        List<ResourceType> shuffleTypes = new ArrayList<>(List.of(activeTypes));
+        List<ResourceType> shuffleTypes = new ArrayList<>(Arrays.asList(activeTypes));
         Collections.shuffle(shuffleTypes);
         for (int i = 0; i < remainder; i++) {
             resourcePool.add(shuffleTypes.get(i));

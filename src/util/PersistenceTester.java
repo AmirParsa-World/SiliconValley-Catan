@@ -15,7 +15,7 @@ public class PersistenceTester {
         players.add(new Player("Jahan", "Red"));
 
         // بروزرسانی به جاوا ۲۱: استفاده از getFirst() به جای get(0)
-        players.getFirst().addResource(model.ResourceType.CAPITAL, 5);
+        players.get(0).addResource(model.ResourceType.CAPITAL, 5);
 
         Map testMap = new Map();
         GameEngine engine = new GameEngine(players, new Market(), testMap);

@@ -1,6 +1,5 @@
 package model;
 
-import java.io.Serial;
 import java.io.Serializable;
 
 public class Edge implements Serializable {
