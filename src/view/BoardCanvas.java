@@ -1,5 +1,7 @@
 package view;
 
+import javafx.animation.PauseTransition;
+import javafx.application.Platform;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.ChoiceDialog;
@@ -13,8 +15,10 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import model.*;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public class BoardCanvas extends StackPane {
     private final model.Map gameMap;
@@ -23,17 +27,16 @@ public class BoardCanvas extends StackPane {
     private final int SQUARE_SIZE = 100;
     private final int PADDING = 50;
 
-    // Build mode state
     private BuildMode buildMode = BuildMode.NONE;
     private Vertex selectedVertex = null;
 
     enum BuildMode {
-        NONE,           // Not building
-        SETUP_MVP,      // Setup: place MVP
-        SETUP_ROAD,     // Setup: place partnership after MVP
-        BUILD_MVP,      // Normal: build MVP
-        BUILD_PARTNERSHIP, // Normal: build partnership
-        UPGRADE_UNICORN // Normal: upgrade to Unicorn
+        NONE,
+        SETUP_MVP,
+        SETUP_ROAD,
+        BUILD_MVP,
+        BUILD_PARTNERSHIP,
+        UPGRADE_UNICORN
     }
 
     public BoardCanvas(model.Map gameMap, MainApp app) {
@@ -42,9 +45,7 @@ public class BoardCanvas extends StackPane {
         this.canvas = new Canvas(650, 650);
         this.getChildren().add(canvas);
 
-        // Add click handler
         canvas.setOnMouseClicked(this::handleClick);
-
         redraw();
     }
 
@@ -95,6 +96,7 @@ public class BoardCanvas extends StackPane {
                 buildMode = BuildMode.NONE;
                 app.getEngine().nextTurn();
                 app.updateUI();
+                app.checkAndRunBotTurn();
             }
         }
     }
@@ -106,6 +108,7 @@ public class BoardCanvas extends StackPane {
             try {
                 Player current = app.getEngine().getCurrentPlayer();
                 app.getEngine().buildMVP(current, clickedVertex);
+                app.getEngine().updateLongestNetworkAward();
                 buildMode = BuildMode.NONE;
                 app.getActionPane().updateStatus("MVP built!");
                 app.updateUI();
@@ -121,6 +124,7 @@ public class BoardCanvas extends StackPane {
             try {
                 Player current = app.getEngine().getCurrentPlayer();
                 app.getEngine().buildPartnership(current, clickedEdge);
+                app.getEngine().updateLongestNetworkAward();
                 buildMode = BuildMode.NONE;
                 app.getActionPane().updateStatus("Partnership built!");
                 app.updateUI();
@@ -138,6 +142,7 @@ public class BoardCanvas extends StackPane {
             try {
                 Player current = app.getEngine().getCurrentPlayer();
                 app.getEngine().upgradeToUnicorn(current, clickedVertex);
+                app.getEngine().updateLongestNetworkAward();
                 buildMode = BuildMode.NONE;
                 app.getActionPane().updateStatus("Upgraded to Unicorn!");
                 app.updateUI();
@@ -154,7 +159,6 @@ public class BoardCanvas extends StackPane {
                 double vX = getVertexX(vertex);
                 double vY = getVertexY(vertex);
 
-                // Check if click is within vertex area
                 if (Math.abs(x - vX) < 15 && Math.abs(y - vY) < 15) {
                     return vertex;
                 }
@@ -173,7 +177,6 @@ public class BoardCanvas extends StackPane {
                     double vX = getVertexX(edge.getV());
                     double vY = getVertexY(edge.getV());
 
-                    // Check if click is near the edge line
                     double dist = distanceToLine(x, y, uX, uY, vX, vY);
                     if (dist < 10) {
                         return edge;
@@ -217,7 +220,10 @@ public class BoardCanvas extends StackPane {
     public void enterSetupMode() {
         Player current = app.getEngine().getCurrentPlayer();
 
-        // Show role selection dialog if player hasn't chosen a role yet
+        if (current instanceof SimpleBot) {
+            return;
+        }
+
         if (current.getRole() == null) {
             chooseRole(current);
         }
@@ -259,11 +265,9 @@ public class BoardCanvas extends StackPane {
     }
 
     private void chooseRole(Player player) {
-        // Build list of available roles (exclude roles already taken by other players)
         List<String> availableRoles = new ArrayList<>();
         availableRoles.add("No Role");
 
-        // Check which roles are already taken
         boolean hackerTaken = false, vcTaken = false, guruTaken = false;
         for (Player p : app.getEngine().getPlayers()) {
             if (p != player && p.getRole() != null) {
@@ -275,7 +279,6 @@ public class BoardCanvas extends StackPane {
             }
         }
 
-        // Add available roles to the list
         if (!hackerTaken) availableRoles.add("Hacker CEO");
         if (!vcTaken) availableRoles.add("VC Funded");
         if (!guruTaken) availableRoles.add("Guru CTO");
@@ -312,7 +315,6 @@ public class BoardCanvas extends StackPane {
         GraphicsContext gc = canvas.getGraphicsContext2D();
         gc.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
 
-        // Draw background
         gc.setFill(Color.web("#f5f5dc"));
         gc.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
 
@@ -321,7 +323,6 @@ public class BoardCanvas extends StackPane {
         drawVertices(gc);
         drawAuditor(gc);
 
-        // Draw selection highlight
         if (selectedVertex != null && buildMode != BuildMode.NONE) {
             double x = getVertexX(selectedVertex);
             double y = getVertexY(selectedVertex);
@@ -346,32 +347,27 @@ public class BoardCanvas extends StackPane {
         int x = col * SQUARE_SIZE + PADDING;
         int y = row * SQUARE_SIZE + PADDING;
 
-        // Fill with gradient
         LinearGradient gradient = new LinearGradient(0, 0, 1, 1, true, CycleMethod.NO_CYCLE,
                 new Stop(0, getSectorColor(sector.getResourceType())),
                 new Stop(1, getSectorColor(sector.getResourceType()).darker()));
         gc.setFill(gradient);
         gc.fillRect(x, y, SQUARE_SIZE, SQUARE_SIZE);
 
-        // Border
         gc.setStroke(Color.BLACK);
         gc.setLineWidth(2);
         gc.strokeRect(x, y, SQUARE_SIZE, SQUARE_SIZE);
 
-        // Resource name - centered
         gc.setFill(Color.BLACK);
         gc.setFont(Font.font("Arial", FontWeight.BOLD, 11));
         String resourceName = sector.getResourceType().getDisplayName();
         double textWidth = resourceName.length() * 6.5;
         gc.fillText(resourceName, x + (SQUARE_SIZE - textWidth) / 2, y + SQUARE_SIZE / 2 - 8);
 
-        // Activation number - centered
         gc.setFont(Font.font("Arial", FontWeight.BOLD, 18));
         String numStr = String.valueOf(sector.getActivationNumber());
         textWidth = numStr.length() * 11;
         gc.fillText(numStr, x + (SQUARE_SIZE - textWidth) / 2, y + SQUARE_SIZE / 2 + 15);
 
-        // Block indicator
         if (sector.isBlocked()) {
             gc.setFill(Color.rgb(255, 0, 0, 0.4));
             gc.fillRect(x, y, SQUARE_SIZE, SQUARE_SIZE);
@@ -382,11 +378,14 @@ public class BoardCanvas extends StackPane {
     }
 
     private void drawEdges(GraphicsContext gc) {
+        Set<Edge> drawn = new HashSet<>();
         for (int row = 0; row < 6; row++) {
             for (int col = 0; col < 6; col++) {
                 Vertex vertex = gameMap.getVertices()[row][col];
                 for (Edge edge : vertex.getNeighboringEdges()) {
-                    drawEdge(gc, edge);
+                    if (drawn.add(edge)) {
+                        drawEdge(gc, edge);
+                    }
                 }
             }
         }
@@ -402,17 +401,14 @@ public class BoardCanvas extends StackPane {
         double vY = getVertexY(v);
 
         if (edge.getOwner() != null) {
-            // Owned edge - thick colored line
             gc.setStroke(getPlayerColor(edge.getOwner()));
             gc.setLineWidth(8);
             gc.strokeLine(uX, uY, vX, vY);
 
-            // White center line for visibility
             gc.setStroke(Color.WHITE);
             gc.setLineWidth(2);
             gc.strokeLine(uX, uY, vX, vY);
         } else {
-            // Empty edge - thin gray dashed line
             gc.setStroke(Color.web("#888888"));
             gc.setLineWidth(3);
             gc.setLineDashes(5, 5);
@@ -436,33 +432,26 @@ public class BoardCanvas extends StackPane {
         int size = 24;
 
         if (vertex.hasStructure()) {
-            // Has structure - draw filled circle with player color
             gc.setFill(getPlayerColor(vertex.getOwner()));
             gc.fillOval(x - size / 2, y - size / 2, size, size);
 
-            // Black border
             gc.setStroke(Color.BLACK);
             gc.setLineWidth(3);
             gc.strokeOval(x - size / 2, y - size / 2, size, size);
 
-            // Draw structure type icon
             if (vertex.getStructure() instanceof Unicorn) {
-                // Unicorn - draw U
                 gc.setFill(Color.GOLD);
                 gc.setFont(Font.font("Arial", FontWeight.BOLD, 14));
                 gc.fillText("U", x - 5, y + 5);
             } else {
-                // MVP - draw M
                 gc.setFill(Color.WHITE);
                 gc.setFont(Font.font("Arial", FontWeight.BOLD, 14));
                 gc.fillText("M", x - 5, y + 5);
             }
         } else {
-            // Empty vertex - draw small circle
             gc.setFill(Color.WHITE);
             gc.fillOval(x - 10, y - 10, 20, 20);
 
-            // Gray border
             gc.setStroke(Color.web("#666666"));
             gc.setLineWidth(2);
             gc.strokeOval(x - 10, y - 10, 20, 20);
@@ -475,12 +464,10 @@ public class BoardCanvas extends StackPane {
             int x = auditor.getCol() * SQUARE_SIZE + PADDING + SQUARE_SIZE / 2;
             int y = auditor.getRow() * SQUARE_SIZE + PADDING + SQUARE_SIZE / 2;
 
-            // Draw auditor marker
             gc.setFill(Color.RED);
             gc.setFont(Font.font("Arial", FontWeight.BOLD, 16));
             gc.fillText("A", x - 5, y + 6);
 
-            // Red circle around auditor
             gc.setStroke(Color.RED);
             gc.setLineWidth(3);
             gc.strokeOval(x - 15, y - 15, 30, 30);
