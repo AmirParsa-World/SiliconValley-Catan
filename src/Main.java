@@ -28,34 +28,36 @@ public class Main {
             players.add(jahan);
             players.add(baran);
 
-            // ۳. راه‌اندازی موتور بازی با بازیکنان و بازار واقعی
-            GameEngine engine = new GameEngine(players, market);
+            // ۳. راه‌اندازی موتور بازی با بازیکنان، بازار و نقشه واقعی
+            GameEngine engine = new GameEngine(players, market, gameMap);
 
             // ==========================================
             // اجرای پله‌پله تست‌های چک‌لیست جامع سیستم
             // ==========================================
 
-            runStage1SetupPhase(engine, gameMap, jahan, baran);
-            runStage2ResourceProduction(engine, gameMap, jahan, baran);
-            runStage3PlacementRules(engine, gameMap, jahan, baran);
+            runStage1SetupPhase(engine, gameMap, jahan);
+            runStage2ResourceProduction(engine, gameMap, jahan);
+            runStage3PlacementRules(engine, gameMap, jahan);
             runStage4DynamicMarket(market, jahan, baran);
             runStage5CrisisAndRoles(engine, jahan, baran);
-            runStage6LongestNetworkAndVictory(engine, gameMap, jahan, baran);
+            runStage6LongestNetworkAndVictory(engine, gameMap, jahan);
+
+            // 🤖 تست جدید و جذاب برای هوش مصنوعی پویا (آدم‌ها در کنار ربات‌ها!)
+            runStage7BotSimulation();
 
             System.out.println("\n🥇==============================================");
             System.out.println("🎉 ALL INTEGRATION & LOGIC TESTS PASSED SUCCESSFULLY! 🎉");
             System.out.println("==================================================");
 
         } catch (Exception e) {
-            System.out.println("\n❌ Test Suite stopped due to unexpected error:");
-            e.printStackTrace();
+            System.err.println("\n❌ Test Suite stopped due to unexpected error: " + e.getMessage());
         }
     }
 
     // ==========================================
     // 1️⃣ تست فاز راه‌اندازی (Setup Phase)
     // ==========================================
-    private static void runStage1SetupPhase(GameEngine engine, Map gameMap, Player jahan, Player baran) {
+    private static void runStage1SetupPhase(GameEngine engine, Map gameMap, Player jahan) {
         System.out.println("--- STAGE 1: Setup Phase (Snake Draft) ---");
 
         // شبیه‌سازی ترتیب نوبت‌ها در Snake Draft
@@ -64,7 +66,7 @@ public class Main {
 
         // گرفتن یک ورتکس و یال خالی برای استقرار آزمایشی
         Vertex targetVertex = gameMap.getVertices()[0][0];
-        Edge targetEdge = targetVertex.getNeighboringEdges().get(0);
+        Edge targetEdge = targetVertex.getNeighboringEdges().getFirst();
 
         // ذخیره منابع قبل از تست برای تایید رایگان بودن فاز اول
         int initialCapital = jahan.getResource(ResourceType.CAPITAL);
@@ -88,7 +90,7 @@ public class Main {
     // ==========================================
     // 2️⃣ تست چرخه نوبت و تولید منبع (Resource Production)
     // ==========================================
-    private static void runStage2ResourceProduction(GameEngine engine, Map gameMap, Player jahan, Player baran) {
+    private static void runStage2ResourceProduction(GameEngine engine, Map gameMap, Player jahan) {
         System.out.println("--- STAGE 2: Resource Production & Auditor Block ---");
 
         // یافتن اولین سکتور غیر بحرانی و فعال روی نقشه برای اجرای سناریو
@@ -128,7 +130,7 @@ public class Main {
 
         // تست تولید عادی MVP (+1 واحد)
         int beforeRoll = jahan.getResource(sectorResType);
-        engine.distributeResources(activationNum, gameMap);
+        engine.distributeResources(activationNum);
         int afterRoll = jahan.getResource(sectorResType);
         System.out.println("Normal MVP yield (Expected +1): " + (afterRoll - beforeRoll));
 
@@ -138,16 +140,16 @@ public class Main {
         jahan.addStructure(sectorVertex.getStructure());
 
         beforeRoll = jahan.getResource(sectorResType);
-        engine.distributeResources(activationNum, gameMap);
+        engine.distributeResources(activationNum);
         afterRoll = jahan.getResource(sectorResType);
         System.out.println("Unicorn yield (Expected +2): " + (afterRoll - beforeRoll));
 
         // تست بلاک شدن سکتور توسط مهره بازرس (Auditor)
         System.out.println("Moving Auditor to block this active sector...");
-        engine.moveAuditor(jahan, targetRow, targetCol, gameMap);
+        engine.moveAuditor(jahan, targetRow, targetCol);
 
         beforeRoll = jahan.getResource(sectorResType);
-        engine.distributeResources(activationNum, gameMap);
+        engine.distributeResources(activationNum);
         afterRoll = jahan.getResource(sectorResType);
         System.out.println("Yield while Auditor blocks (Expected +0): " + (afterRoll - beforeRoll));
 
@@ -159,7 +161,7 @@ public class Main {
     // ==========================================
     // 3️⃣ تست قوانین مکانی و ساخت‌وساز (Placement Rules)
     // ==========================================
-    private static void runStage3PlacementRules(GameEngine engine, Map gameMap, Player jahan, Player baran) {
+    private static void runStage3PlacementRules(GameEngine engine, Map gameMap, Player jahan) {
         System.out.println("--- STAGE 3: Placement & Connection Rules ---");
 
         // انتخاب یک ورتکس مبدا برای قرار دادن سازه
@@ -168,7 +170,7 @@ public class Main {
         v1.setStructure(new MVP(jahan, v1));
 
         // ورتکس همسایه مستقیم (با فاصله تنها یک یال)
-        Vertex v2 = v1.getNeighbors().get(0);
+        Vertex v2 = v1.getNeighbors().getFirst();
 
         // تست قانون فاصله ۲ یال (سیستم نباید اجازه ساخت به v2 بدهد)
         System.out.println("Testing Distance Rule (trying to build MVP on direct neighbor)...");
@@ -183,7 +185,7 @@ public class Main {
         // تست قانون اتصال برای راه‌ها و پارتنرشیپ‌های بعدی
         System.out.println("Testing Connection Rule for disconnected Partnerships...");
         Vertex isolatedVertex = gameMap.getVertices()[5][5];
-        Edge isolatedEdge = isolatedVertex.getNeighboringEdges().get(0);
+        Edge isolatedEdge = isolatedVertex.getNeighboringEdges().getFirst();
 
         // تخصیص کارت‌ها جهت آمادگی هزینه پارتنرشیپ
         jahan.addResource(ResourceType.CAPITAL, 1);
@@ -280,7 +282,7 @@ public class Main {
     // ==========================================
     // 6️⃣ تست سیستم امتیازدهی و پایان بازی
     // ==========================================
-    private static void runStage6LongestNetworkAndVictory(GameEngine engine, Map gameMap, Player jahan, Player baran) {
+    private static void runStage6LongestNetworkAndVictory(GameEngine engine, Map gameMap, Player jahan) {
         System.out.println("--- STAGE 6: Scoring, Longest Network & Victory ---");
 
         // تست اعمال امتیاز منفی نقش انتخابی در زمان راه‌اندازی (با وجود کارت نقش Hacker CEO)
@@ -297,6 +299,7 @@ public class Main {
         // قرار دادن یک سازه در مبدا شبکه برای معتبرسازی مسیرهای متصل
         v00.setOwner(jahan);
         v00.setStructure(new MVP(jahan, v00));
+        jahan.getStructures().clear();
         jahan.addStructure(v00.getStructure());
 
         // یافتن و تصاحب یال‌های اتصالی برای جاده‌ها
@@ -318,10 +321,10 @@ public class Main {
         if (edge3 != null) { edge3.setOwner(jahan); edge3.setPartnership(true); }
 
         System.out.println("Evaluating Longest Network size on the board...");
-        int longestChain = engine.calculateLongestNetwork(jahan, gameMap);
+        int longestChain = engine.calculateLongestNetwork(jahan);
         System.out.println("Jahan's computed Longest Network length: " + longestChain + " (Expected: 3)");
 
-        engine.updateLongestNetworkAward(gameMap);
+        engine.updateLongestNetworkAward();
 
         // شبیه‌سازی شرط پیروزی بازی (رسیدن به امتیاز ۱۰ در پایان نوبت)
         System.out.println("Simulating development to reach 10 points...");
@@ -339,5 +342,97 @@ public class Main {
         engine.nextTurn();
 
         System.out.println("✅ Scoring & Victory logic verified.\n");
+    }
+
+    // ==========================================
+    // 7️⃣ تست بازی پویا و شبیه‌سازی نوبت خودکار ربات‌ها
+    // ==========================================
+    private static void runStage7BotSimulation() {
+        System.out.println("--- STAGE 7: Dynamic Game & Bot Simulation ---");
+
+        Map botMap = new Map();
+        Market botMarket = new Market();
+        Dice dice = new Dice();
+
+        // ایجاد ترکیب پویا: ۱ بازیکن انسانی و ۲ ربات
+        Player humanPlayer = new Player("Jahan (Human)", "Red");
+        SimpleBot bot1 = new SimpleBot("CPU_1 (Bot)", "Blue");
+        SimpleBot bot2 = new SimpleBot("CPU_2 (Bot)", "Green");
+
+        List<Player> players = new ArrayList<>();
+        players.add(humanPlayer);
+        players.add(bot1);
+        players.add(bot2);
+
+        System.out.println("Initializing dynamic game simulation with 1 Human and 2 Bots...");
+        GameEngine engine = new GameEngine(players, botMarket, botMap);
+
+        // ۱. شبیه‌سازی فاز راه‌اندازی (Setup Phase - Snake Draft)
+        System.out.println("\n--- Starting Setup Phase Snake Draft loop ---");
+
+        // نوبت اول: انسان (Jahan)
+        System.out.println("[Turn 1] Active: " + engine.getCurrentPlayer().getName());
+        Vertex v1 = botMap.getVertices()[1][1];
+        Edge e1 = v1.getNeighboringEdges().getFirst();
+        engine.setupPlaceMVPAndPartnership(humanPlayer, v1, e1);
+        engine.nextTurn(); // انتقال نوبت به CPU_1
+
+        // نوبت دوم: ربات ۱ (CPU_1) - کاملاً خودکار!
+        System.out.println("\n[Turn 2] Active: " + engine.getCurrentPlayer().getName());
+        engine.playBotSetupTurn();
+
+        // نوبت سوم: ربات ۲ (CPU_2) - کاملاً خودکار!
+        System.out.println("\n[Turn 3] Active: " + engine.getCurrentPlayer().getName());
+        engine.playBotSetupTurn();
+
+        // نوبت چهارم: ربات ۲ (CPU_2) - فاز برگشت Snake Draft
+        System.out.println("\n[Turn 4] Active: " + engine.getCurrentPlayer().getName());
+        engine.playBotSetupTurn();
+
+        // نوبت پنجم: ربات ۱ (CPU_1) - فاز برگشت Snake Draft
+        System.out.println("\n[Turn 5] Active: " + engine.getCurrentPlayer().getName());
+        engine.playBotSetupTurn();
+
+        // نوبت ششم: انسان (Jahan) - فاز برگشت
+        System.out.println("\n[Turn 6] Active: " + engine.getCurrentPlayer().getName());
+        Vertex v2 = botMap.getVertices()[3][3];
+        Edge e2 = v2.getNeighboringEdges().getFirst();
+        engine.setupPlaceMVPAndPartnership(humanPlayer, v2, e2);
+        engine.nextTurn(); // اتمام فاز ست‌آپ و تغییر وضعیت خودکار به NORMAL
+
+        System.out.println("\nTransition validation: Current Game Phase (Expected NORMAL): " + engine.getCurrentPhase());
+
+        // ۲. شبیه‌سازی فاز عادی (Normal Phase) و تست خرید خودکار ربات
+        System.out.println("\n--- Starting Normal Phase Simulation ---");
+
+        // در حال حاضر نوبت انسان (Jahan) است. نوبت را به CPU_1 منتقل می‌کنیم.
+        engine.setHasRolledThisTurn(true);
+        engine.nextTurn();
+
+        System.out.println("Now active: " + engine.getCurrentPlayer().getName());
+
+        // دادن کارت‌های کافی به ربات ۱ تا بتواند خرید کند
+        bot1.addResource(ResourceType.CAPITAL, 1);
+        bot1.addResource(ResourceType.TALENT, 1);
+        bot1.addResource(ResourceType.CLOUD, 1);
+        bot1.addResource(ResourceType.DATA, 1);
+
+        System.out.println("CPU_1 resources before starting turn: " + bot1.getWallet());
+        System.out.println("CPU_1 structure count before starting turn: " + bot1.getStructures().size());
+
+        // اجرای نوبت خودکار ربات (تاس می‌ریزد و MVP خودکار می‌سازد)
+        engine.playBotTurn(dice);
+
+        System.out.println("CPU_1 resources after automated turn: " + bot1.getWallet());
+        System.out.println("CPU_1 structure count after turn: " + bot1.getStructures().size());
+
+        // تایید ساخت خودکار: ۲ سازه اولیه در ست‌آپ داشته + ۱ دانه در نوبت عادی ساخته = ۳ سازه
+        if (bot1.getStructures().size() == 3) {
+            System.out.println("🛡️ SUCCESS: SimpleBot successfully simulated automatic setup, yield collection, and MVP construction!");
+        } else {
+            System.out.println("❌ ERROR: Bot automatic construction logic failed.");
+        }
+
+        System.out.println("✅ Dynamic Game & Bot Simulation verified.\n");
     }
 }

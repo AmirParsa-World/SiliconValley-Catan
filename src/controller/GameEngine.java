@@ -14,23 +14,25 @@ public class GameEngine implements Serializable {
     private int currentPlayerIndex;
     private int currentRound;
     private boolean hasRolledThisTurn;
+    private final Map gameMap; // 👈 نقشه ثابت بازی
 
     // 🔄 فیلدهای مدیریت فاز رفت و برگشت (Snake Draft)
     private GamePhase currentPhase;
     private final List<Integer> setupOrder = new ArrayList<>();
     private int setupStep = 0;
 
-    //needed dor save and load the game.
+    // needed for save and load the game.
     private static final long serialVersionUID = 1L;
 
-    //needed for giva a log about gameFlow
+    // needed for giving a log about gameFlow
     private final List<String> gameLog = new ArrayList<>();
 
 
-    // 🏗️ Constructor
-    public GameEngine(List<Player> players, Market market) {
+    // 🏗️ Constructor (مپ را به عنوان فیلد اصلی بازی تحویل می‌گیرد)
+    public GameEngine(List<Player> players, Market market, Map gameMap) {
         this.players = players != null ? players : new ArrayList<>();
         this.market = market;
+        this.gameMap = gameMap;
         this.currentPlayerIndex = 0;
         this.currentRound = 1;
         this.hasRolledThisTurn = false;
@@ -60,6 +62,10 @@ public class GameEngine implements Serializable {
 
         this.setupStep = 0;
         this.currentPlayerIndex = setupOrder.get(0);
+    }
+
+    public Map getGameMap() {
+        return this.gameMap;
     }
 
     // 🎲 تاس ریختن قانونمند
@@ -100,11 +106,9 @@ public class GameEngine implements Serializable {
 
         System.out.println("🔄 TRANSACTION SUCCESS: " + sender.getName() + " traded with " + receiver.getName());
 
-        // در انتهای متد و قبل از پرانتز بسته، این لاگ را اضافه کن:
+        // ثبت لاگ معامله
         log("🔄 TRADE: " + sender.getName() + " traded with " + receiver.getName() +
                 " (Offered: " + offeredAmount + " " + offeredItem + " | Requested: " + requestedAmount + " " + requestedItem + ")");
-
-
     }
 
     public Player getCurrentPlayer() {
@@ -152,13 +156,12 @@ public class GameEngine implements Serializable {
             }
         } else if (currentPhase == GamePhase.NORMAL) {
 
-            // 🎯 اینجا از متد بولین استفاده می‌کنیم:
             // اگر متد مقدار true برگرداند (یعنی بازی تمام شده)، بلافاصله متد را خاتمه می‌دهیم (return)
             if (checkVictoryCondition()) {
                 return;
             }
 
-            // اگر بازی تمام نشده بود، کد به راهش ادامه می‌دهد و نوبت را منتقل می‌کند:
+            // اگر بازی تمام نشده بود، نوبت را منتقل می‌کند:
             if (currentPlayerIndex == players.size() - 1) {
                 market.incrementRoundTick();
                 currentRound++;
@@ -171,9 +174,9 @@ public class GameEngine implements Serializable {
             log("🏁 Turn passed. It is now " + getCurrentPlayer().getName() + "'s turn!");
         }
     }
+
     // 🚨 مدیریت بحران مالیاتی (تاس ۷)
     public void triggerRegulatoryCrisis() {
-
         log("🚨 REGULATORY CRISIS TRIPPED! Tax authorities are auditing players..."); // 📝 ثبت لاگ بحران
 
         for (Player player : players) {
@@ -215,8 +218,8 @@ public class GameEngine implements Serializable {
         System.out.println("[UI Stub] Regulatory Auditor Blocker is ready to be moved on the map.");
     }
 
-    // 💎 سیستم توزیع منابع بر اساس عدد تاس
-    public void distributeResources(int rollValue, Map gameMap) {
+    // 💎 سیستم توزیع منابع بر اساس عدد تاس (استفاده مستقیم از this.gameMap)
+    public void distributeResources(int rollValue) {
         if (rollValue == 7) {
             triggerRegulatoryCrisis();
             return;
@@ -224,7 +227,7 @@ public class GameEngine implements Serializable {
 
         log("🎲 Dice rolled: " + rollValue + ". Distributing resources...");
 
-        for (Sector[] row : gameMap.getSectors()) {
+        for (Sector[] row : this.gameMap.getSectors()) {
             for (Sector sector : row) {
                 if (sector != null && sector.getActivationNumber() == rollValue && !sector.isBlocked()) {
                     ResourceType resource = sector.getResourceType();
@@ -250,16 +253,16 @@ public class GameEngine implements Serializable {
         }
     }
 
-    // 🕸️ محاسبه طول بلندترین شبکه جاده‌های متصل برای یک بازیکن (الگوریتم DFS)
-    public int calculateLongestNetwork(Player player, Map gameMap) {
+    // 🕸️ محاسبه طول بلندترین جاده متصل (بدون نیاز به پاس دادن دستی نقشه)
+    public int calculateLongestNetwork(Player player) {
         int maxLength = 0;
         List<Edge> playerEdges = new ArrayList<>();
-        int vertexRows = gameMap.getVertices().length;
-        int vertexCols = gameMap.getVertices()[0].length;
+        int vertexRows = this.gameMap.getVertices().length;
+        int vertexCols = this.gameMap.getVertices()[0].length;
 
         for (int r = 0; r < vertexRows; r++) {
             for (int c = 0; c < vertexCols; c++) {
-                Vertex v = gameMap.getVertices()[r][c];
+                Vertex v = this.gameMap.getVertices()[r][c];
                 for (Edge edge : v.getNeighboringEdges()) {
                     if (edge.getOwner() != null && edge.getOwner().equals(player) && !playerEdges.contains(edge)) {
                         playerEdges.add(edge);
@@ -290,14 +293,13 @@ public class GameEngine implements Serializable {
         return 1 + maxDepth;
     }
 
-    // 🏆 متد تخصصی تخصیص پویای امتیاز بلندترین زنجیره جاده
-// 🏆 متد تخصصی تخصیص پویای امتیاز بلندترین زنجیره جاده
-    public void updateLongestNetworkAward(Map gameMap) {
+    // 🏆 متد تخصصی تخصیص پویای امتیاز بلندترین زنجیره جاده (بدون نیاز به پاس دادن دستی نقشه)
+    public void updateLongestNetworkAward() {
         Player currentWinner = null;
         int maxLen = 2; // حداقل طول زنجیره باید بزرگتر از ۲ باشد
 
         for (Player p : players) {
-            int len = calculateLongestNetwork(p, gameMap);
+            int len = calculateLongestNetwork(p);
             if (len > maxLen) {
                 maxLen = len;
                 currentWinner = p;
@@ -313,6 +315,7 @@ public class GameEngine implements Serializable {
             log("👑 Longest Network belongs to " + currentWinner.getName() + " with length " + maxLen);
         }
     }
+
     // 🏢 ساخت محصول اولیه (MVP)
     public void buildMVP(Player player, Vertex targetVertex) {
         if (player.getResource(ResourceType.CAPITAL) < 1 || player.getResource(ResourceType.TALENT) < 1 ||
@@ -394,15 +397,15 @@ public class GameEngine implements Serializable {
 
         targetEdge.setOwner(player);
         targetEdge.setPartnership(true);
-      log("🤝 SUCCESS: " + player.getName() + " established a Partnership!");
+        log("🤝 SUCCESS: " + player.getName() + " established a Partnership!");
     }
 
-    // 🚨 حرکت دادن مهره بازرس (Auditor)
-    public void moveAuditor(Player rollingPlayer, int targetRow, int targetCol, Map gameMap) {
-        Sector targetSector = gameMap.getSectors()[targetRow][targetCol];
+    // 🚨 حرکت دادن مهره بازرس (Auditor) (با استفاده از نقشه داخلی این کلاس)
+    public void moveAuditor(Player rollingPlayer, int targetRow, int targetCol) {
+        Sector targetSector = this.gameMap.getSectors()[targetRow][targetCol];
 
         boolean anySectorHasPlayerCompany = false;
-        for (Sector[] row : gameMap.getSectors()) {
+        for (Sector[] row : this.gameMap.getSectors()) {
             for (Sector sec : row) {
                 if (sec != null && hasPlayersOnSector(sec)) {
                     anySectorHasPlayerCompany = true;
@@ -415,7 +418,7 @@ public class GameEngine implements Serializable {
             throw new exception.InvalidAuditorPlacementException("You must place the Auditor on a sector that has at least one player's structure!");
         }
 
-        for (Sector[] row : gameMap.getSectors()) {
+        for (Sector[] row : this.gameMap.getSectors()) {
             for (Sector sec : row) {
                 if (sec != null && sec.isBlocked()) {
                     sec.unblock();
@@ -424,8 +427,9 @@ public class GameEngine implements Serializable {
         }
 
         targetSector.block();
-        gameMap.getAuditor().move(targetRow, targetCol);
-        log("🕵️‍♂️ AUDITOR: Moved to sector (" + targetRow + "," + targetCol + ")");    }
+        this.gameMap.getAuditor().move(targetRow, targetCol);
+        log("🕵️‍♂️ AUDITOR: Moved to sector (" + targetRow + "," + targetCol + ")");
+    }
 
     private boolean hasPlayersOnSector(Sector sector) {
         Vertex[] corners = {sector.getBottomLeft(), sector.getBottomRight(), sector.getTopLeft(), sector.getTopRight()};
@@ -452,20 +456,112 @@ public class GameEngine implements Serializable {
         log("📦 SETUP SUCCESS: " + player.getName() + " placed starting MVP & Partnership!");
     }
 
-
-
-    // for giva a general log from the game flow, to knowing what has been happened.
-    // متد کمکی برای ثبت لاگ همراه با مهر زمانی (Timestamp)
+    // ثبت لاگ همراه با مهر زمانی (Timestamp)
     public void log(String message) {
         String timestamp = java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
         String formattedLog = "[" + timestamp + "] " + message;
 
         gameLog.add(formattedLog);
-        System.out.println(formattedLog); // برای اینکه خودت هم در کنسول خروجی را همزمان ببینی
+        System.out.println(formattedLog);
     }
 
-    // متد مخصوص باران (UI) برای دریافت لاگ‌ها
     public List<String> getGameLog() {
-        return new ArrayList<>(this.gameLog); // برگشت دادن یک کپی برای حفظ امنیت داده‌ها
+        return new ArrayList<>(this.gameLog);
+    }
+
+    // 🤖 اجرای خودکار فاز راه‌اندازی (Setup) برای ربات (استفاده از مپ داخلی)
+    public void playBotSetupTurn() {
+        Player activePlayer = getCurrentPlayer();
+        if (!(activePlayer instanceof SimpleBot)) {
+            return;
+        }
+
+        SimpleBot bot = (SimpleBot) activePlayer;
+        log("🤖 Bot " + bot.getName() + " is placing its starting MVP & Partnership automatically...");
+
+        // ۱. پیدا کردن اولین راس قانونی روی مپ
+        Vertex targetVertex = findFirstValidVertex();
+
+        if (targetVertex != null) {
+            // ۲. پیدا کردن اولین یال خالی متصل به این راس
+            Edge targetEdge = null;
+            for (Edge edge : targetVertex.getNeighboringEdges()) {
+                if (edge != null && edge.getOwner() == null) {
+                    targetEdge = edge;
+                    break;
+                }
+            }
+
+            if (targetEdge != null) {
+                try {
+                    // ۳. ساخت سازه اولیه در فاز ست‌آپ
+                    setupPlaceMVPAndPartnership(bot, targetVertex, targetEdge);
+
+                    // ۴. پاس دادن نوبت
+                    nextTurn();
+                } catch (Exception e) {
+                    log("⚠️ Bot setup failed: " + e.getMessage());
+                }
+            } else {
+                log("⚠️ Bot " + bot.getName() + " couldn't find an empty adjacent edge during setup!");
+            }
+        } else {
+            log("⚠️ Bot " + bot.getName() + " couldn't find a valid location during setup!");
+        }
+    }
+
+    // 🤖 اجرای نوبت معمولی ربات به صورت کاملاً خودکار (استفاده از مپ داخلی)
+    public void playBotTurn(Dice dice) {
+        Player activePlayer = getCurrentPlayer();
+        if (!(activePlayer instanceof SimpleBot)) {
+            return;
+        }
+
+        SimpleBot bot = (SimpleBot) activePlayer;
+        log("🤖 Bot " + bot.getName() + " is starting its turn automatically...");
+
+        // ۱. فاز تاس ریختن
+        try {
+            int rollResult = rollDice(dice);
+            distributeResources(rollResult);
+        } catch (AlreadyRolledException e) {
+            // هندل کردن تکرار تاس در تست‌ها
+        }
+
+        // ۲. بررسی منابع برای ساخت MVP
+        boolean canAffordMVP = bot.getResource(ResourceType.CAPITAL) >= 1 &&
+                bot.getResource(ResourceType.TALENT) >= 1 &&
+                bot.getResource(ResourceType.CLOUD) >= 1 &&
+                bot.getResource(ResourceType.DATA) >= 1;
+
+        if (canAffordMVP) {
+            Vertex targetVertex = findFirstValidVertex();
+            if (targetVertex != null) {
+                try {
+                    buildMVP(bot, targetVertex);
+                } catch (Exception e) {
+                    log("⚠️ Bot failed to build MVP: " + e.getMessage());
+                }
+            }
+        } else {
+            log("🤖 Bot " + bot.getName() + " does not have enough resources to build MVP.");
+        }
+
+        // ۳. پایان خودکار نوبت
+        nextTurn();
+    }
+
+    // 🔍 پیدا کردن اولین راس خالی و قانونی روی نقشه داخلی
+    private Vertex findFirstValidVertex() {
+        Vertex[][] vertices = this.gameMap.getVertices();
+        for (int r = 0; r < vertices.length; r++) {
+            for (int c = 0; c < vertices[r].length; c++) {
+                Vertex v = vertices[r][c];
+                if (v != null && isValidStructurePlacement(v)) {
+                    return v;
+                }
+            }
+        }
+        return null;
     }
 }
