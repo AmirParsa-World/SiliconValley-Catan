@@ -1,7 +1,10 @@
 package view;
 
+import javafx.animation.PauseTransition;
+import javafx.application.Platform;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.TextInputDialog;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
@@ -43,12 +46,10 @@ public class ActionPane extends VBox {
         statusLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
         statusLabel.setWrapText(true);
 
-        // Setup phase button
         startSetupBtn = createButton("Start Setup");
         startSetupBtn.setOnAction(e -> startSetup());
         startSetupBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;");
 
-        // Normal phase buttons
         rollDiceBtn = createButton("Roll Dice");
         rollDiceBtn.setOnAction(e -> rollDice());
 
@@ -78,8 +79,8 @@ public class ActionPane extends VBox {
     public void update() {
         Player current = engine.getCurrentPlayer();
         GamePhase phase = engine.getCurrentPhase();
+        boolean isBot = current instanceof SimpleBot;
 
-        // Update phase label
         if (phase == GamePhase.SETUP) {
             phaseLabel.setText("SETUP PHASE");
             phaseLabel.setTextFill(Color.ORANGE);
@@ -91,30 +92,29 @@ public class ActionPane extends VBox {
             phaseLabel.setTextFill(Color.RED);
         }
 
-        statusLabel.setText("Current Player:\n" + current.getName());
+        String botTag = isBot ? " [BOT]" : "";
+        statusLabel.setText("Current Player:\n" + current.getName() + botTag);
         statusLabel.setTextFill(getPlayerColor(current));
 
-        // Setup phase controls
         boolean isSetup = (phase == GamePhase.SETUP);
         boolean inSetupMode = app.getBoardCanvas().isSetupMode();
 
-        startSetupBtn.setVisible(isSetup && !inSetupMode);
-        startSetupBtn.setManaged(isSetup && !inSetupMode);
+        startSetupBtn.setVisible(isSetup && !inSetupMode && !isBot);
+        startSetupBtn.setManaged(isSetup && !inSetupMode && !isBot);
 
-        // Normal phase controls
         boolean isNormal = (phase == GamePhase.NORMAL);
-        rollDiceBtn.setVisible(isNormal);
-        rollDiceBtn.setManaged(isNormal);
-        buildMVPBtn.setVisible(isNormal);
-        buildMVPBtn.setManaged(isNormal);
-        upgradeUnicornBtn.setVisible(isNormal);
-        upgradeUnicornBtn.setManaged(isNormal);
-        buildPartnershipBtn.setVisible(isNormal);
-        buildPartnershipBtn.setManaged(isNormal);
-        endTurnBtn.setVisible(isNormal);
-        endTurnBtn.setManaged(isNormal);
+        rollDiceBtn.setVisible(isNormal && !isBot);
+        rollDiceBtn.setManaged(isNormal && !isBot);
+        buildMVPBtn.setVisible(isNormal && !isBot);
+        buildMVPBtn.setManaged(isNormal && !isBot);
+        upgradeUnicornBtn.setVisible(isNormal && !isBot);
+        upgradeUnicornBtn.setManaged(isNormal && !isBot);
+        buildPartnershipBtn.setVisible(isNormal && !isBot);
+        buildPartnershipBtn.setManaged(isNormal && !isBot);
+        endTurnBtn.setVisible(isNormal && !isBot);
+        endTurnBtn.setManaged(isNormal && !isBot);
 
-        if (isNormal) {
+        if (isNormal && !isBot) {
             rollDiceBtn.setDisable(engine.hasRolledThisTurn());
             buildMVPBtn.setDisable(!engine.hasRolledThisTurn());
             upgradeUnicornBtn.setDisable(!engine.hasRolledThisTurn());
@@ -128,6 +128,9 @@ public class ActionPane extends VBox {
     }
 
     private void startSetup() {
+        Player current = engine.getCurrentPlayer();
+        if (current instanceof SimpleBot) return;
+
         app.getBoardCanvas().enterSetupMode();
         statusLabel.setText("Click a vertex\nto place your MVP");
         update();
@@ -135,22 +138,19 @@ public class ActionPane extends VBox {
 
     private void rollDice() {
         try {
-            // ساخت یک شیء تاس و پاس دادن آن به متد قانونمند بک‌اَند
             Dice dice = new Dice();
             int total = engine.rollDice(dice);
 
-            // تفکیک مجموع برای نمایش بصری روی دو وجه متمایز گرافیکی در پنل باران
-            int dice1 = total / 2;
-            int dice2 = total - dice1;
-
-            app.getDicePane().showDiceResult(dice1, dice2);
+            app.getDicePane().showDiceResult(dice.getLastDie1(), dice.getLastDie2());
             statusLabel.setText("Rolled: " + total);
             engine.distributeResources(total);
+            engine.updateLongestNetworkAward();
             app.updateUI();
         } catch (Exception e) {
             statusLabel.setText("Error: " + e.getMessage());
         }
     }
+
     private void buildMVP() {
         app.getBoardCanvas().enterBuildMVPMode();
         statusLabel.setText("Click a vertex\nto place your MVP");
@@ -172,6 +172,7 @@ public class ActionPane extends VBox {
         engine.nextTurn();
         statusLabel.setText("Turn ended!");
         app.updateUI();
+        app.checkAndRunBotTurn();
     }
 
     private Color getPlayerColor(Player player) {
