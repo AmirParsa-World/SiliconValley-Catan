@@ -68,6 +68,10 @@ public class GameEngine implements Serializable {
         return this.gameMap;
     }
 
+    public List<Player> getPlayers() {
+        return this.players;
+    }
+
     // 🎲 تاس ریختن قانونمند
     public int rollDice(Dice dice) {
         if (hasRolledThisTurn) {
