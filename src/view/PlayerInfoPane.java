@@ -8,6 +8,7 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
+import javafx.scene.text.FontPosture;
 import javafx.scene.text.FontWeight;
 import model.*;
 import controller.GameEngine;
@@ -40,7 +41,6 @@ public class PlayerInfoPane extends VBox {
 
         this.getChildren().addAll(title, currentPlayerLabel, phaseLabel);
 
-        // Create player cards
         playerCards = new ArrayList<>();
         for (int i = 0; i < 4; i++) {
             VBox card = createPlayerCard();
@@ -70,11 +70,15 @@ public class PlayerInfoPane extends VBox {
         pointsLabel.setFont(Font.font("Arial", FontWeight.BOLD, 13));
         pointsLabel.setId("pointsLabel");
 
-        // Resource row with colored icons
         HBox resourcesBox = new HBox(6);
         resourcesBox.setId("resourcesBox");
 
-        card.getChildren().addAll(nameLabel, roleLabel, pointsLabel, resourcesBox);
+        Label hiddenLabel = new Label("Cards hidden (not your turn)");
+        hiddenLabel.setFont(Font.font("Arial", FontPosture.ITALIC, 11));
+        hiddenLabel.setTextFill(Color.GRAY);
+        hiddenLabel.setId("hiddenLabel");
+
+        card.getChildren().addAll(nameLabel, roleLabel, pointsLabel, resourcesBox, hiddenLabel);
         return card;
     }
 
@@ -82,7 +86,6 @@ public class PlayerInfoPane extends VBox {
         HBox box = new HBox(2);
         box.setStyle("-fx-padding: 2 4; -fx-background-color: #f0f0f0; -fx-background-radius: 3;");
 
-        // Small colored circle as resource icon
         Canvas icon = new Canvas(12, 12);
         GraphicsContext gc = icon.getGraphicsContext2D();
         gc.setFill(getResourceColor(type));
@@ -111,33 +114,47 @@ public class PlayerInfoPane extends VBox {
             VBox card = playerCards.get(i);
             if (i < players.size()) {
                 Player player = players.get(i);
+                boolean isCurrent = player.equals(current);
 
-                // Update name
                 Label nameLabel = (Label) card.getChildren().get(0);
                 String longNet = player.isHasLongestNetwork() ? " [CROWN]" : "";
                 nameLabel.setText(player.getName() + longNet);
                 nameLabel.setTextFill(getPlayerColor(player));
 
-                // Update role
                 Label roleLabel = (Label) card.getChildren().get(1);
                 String roleStr = player.getRole() != null ? player.getRole().toString() : "No Role";
                 roleLabel.setText("Role: " + roleStr);
 
-                // Update points
                 Label pointsLabel = (Label) card.getChildren().get(2);
                 pointsLabel.setText("Points: " + player.countPlayerPoint() + "  |  Cards: " + player.getTotalResources());
 
-                // Update resource breakdown
                 HBox resourcesBox = (HBox) card.getChildren().get(3);
+                Label hiddenLabel = (Label) card.getChildren().get(4);
+
                 resourcesBox.getChildren().clear();
 
-                ResourceType[] activeTypes = {
-                    ResourceType.DATA, ResourceType.PATENT,
-                    ResourceType.CLOUD, ResourceType.CAPITAL, ResourceType.TALENT
-                };
-                for (ResourceType type : activeTypes) {
-                    int count = player.getResource(type);
-                    resourcesBox.getChildren().add(createResourceDisplay(type, count));
+                if (isCurrent) {
+                    ResourceType[] activeTypes = {
+                        ResourceType.DATA, ResourceType.PATENT,
+                        ResourceType.CLOUD, ResourceType.CAPITAL, ResourceType.TALENT
+                    };
+                    for (ResourceType type : activeTypes) {
+                        int count = player.getResource(type);
+                        resourcesBox.getChildren().add(createResourceDisplay(type, count));
+                    }
+                    resourcesBox.setVisible(true);
+                    resourcesBox.setManaged(true);
+                    hiddenLabel.setVisible(false);
+                    hiddenLabel.setManaged(false);
+
+                    card.setStyle("-fx-padding: 8; -fx-background-color: #fffde7; -fx-border-color: #fbc02d; -fx-border-width: 2; -fx-background-radius: 5; -fx-border-radius: 5;");
+                } else {
+                    resourcesBox.setVisible(false);
+                    resourcesBox.setManaged(false);
+                    hiddenLabel.setVisible(true);
+                    hiddenLabel.setManaged(true);
+
+                    card.setStyle("-fx-padding: 8; -fx-background-color: white; -fx-border-color: #bbb; -fx-border-width: 1; -fx-background-radius: 5; -fx-border-radius: 5;");
                 }
 
                 card.setVisible(true);
@@ -151,11 +168,11 @@ public class PlayerInfoPane extends VBox {
 
     private Color getResourceColor(ResourceType type) {
         switch (type) {
-            case DATA:    return Color.web("#4CAF50");  // green
-            case PATENT:  return Color.web("#FF9800");  // orange
-            case CLOUD:   return Color.web("#2196F3");  // blue
-            case CAPITAL: return Color.web("#9E9E9E");  // gray
-            case TALENT:  return Color.web("#E91E63");  // pink
+            case DATA:    return Color.web("#4CAF50");
+            case PATENT:  return Color.web("#FF9800");
+            case CLOUD:   return Color.web("#2196F3");
+            case CAPITAL: return Color.web("#9E9E9E");
+            case TALENT:  return Color.web("#E91E63");
             default:      return Color.GRAY;
         }
     }
