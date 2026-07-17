@@ -1,6 +1,8 @@
 package view;
 
+import javafx.animation.PauseTransition;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
@@ -8,11 +10,13 @@ import javafx.scene.control.ChoiceDialog;
 import javafx.scene.layout.BorderPane;
 import javafx.stage.Stage;
 import controller.GameEngine;
+import controller.GamePhase;
 import controller.Market;
 import model.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import javafx.util.Duration;
 
 public class MainApp extends Application {
     private GameEngine engine;
@@ -24,26 +28,27 @@ public class MainApp extends Application {
     private ActionPane actionPane;
     private DicePane dicePane;
 
+    private static final double BOT_DELAY_SECONDS = 0.8;
+
     @Override
     public void start(Stage primaryStage) {
-        // Ask for player count
         int playerCount = askPlayerCount();
         if (playerCount < 2 || playerCount > 4) {
             playerCount = 2;
         }
 
-        initializeGame(playerCount);
+        boolean[] isBotArray = askPlayerTypes(playerCount);
+
+        initializeGame(playerCount, isBotArray);
 
         BorderPane root = new BorderPane();
 
-        // Create UI components
         boardCanvas = new BoardCanvas(gameMap, this);
         playerInfoPane = new PlayerInfoPane(engine, this);
         marketPane = new MarketPane(market, engine, this);
         actionPane = new ActionPane(engine, gameMap, this);
         dicePane = new DicePane(engine, this);
 
-        // Layout
         root.setCenter(boardCanvas);
         root.setRight(playerInfoPane);
         root.setBottom(marketPane);
@@ -57,6 +62,11 @@ public class MainApp extends Application {
         primaryStage.show();
 
         updateUI();
+
+        // If first player is a bot, auto-play after a short delay
+        PauseTransition startupDelay = new PauseTransition(Duration.seconds(0.3));
+        startupDelay.setOnFinished(e -> checkAndRunBotTurn());
+        startupDelay.play();
     }
 
     private int askPlayerCount() {
@@ -69,7 +79,24 @@ public class MainApp extends Application {
         return result.orElse(2);
     }
 
-    private void initializeGame(int playerCount) {
+    private boolean[] askPlayerTypes(int playerCount) {
+        String[] colors = {"Red", "Blue", "Green", "Yellow"};
+        boolean[] isBot = new boolean[playerCount];
+
+        for (int i = 0; i < playerCount; i++) {
+            ChoiceDialog<String> dialog = new ChoiceDialog<>("Human", "Human", "Bot");
+            dialog.setTitle("Player " + (i + 1) + " Type");
+            dialog.setHeaderText("Player " + (i + 1) + " (" + colors[i] + "):");
+            dialog.setContentText("Is this player Human or Bot?");
+
+            Optional<String> result = dialog.showAndWait();
+            isBot[i] = result.orElse("Human").equals("Bot");
+        }
+
+        return isBot;
+    }
+
+    private void initializeGame(int playerCount, boolean[] isBotArray) {
         gameMap = new Map();
         market = new Market();
 
@@ -77,12 +104,115 @@ public class MainApp extends Application {
 
         List<Player> players = new ArrayList<>();
         for (int i = 0; i < playerCount; i++) {
-            Player player = new Player("Player " + (i + 1), colors[i]);
-            // Role will be chosen during setup phase
+            String name = isBotArray[i] ? "Bot " + (i + 1) : "Player " + (i + 1);
+            Player player = isBotArray[i]
+                ? new SimpleBot(name, colors[i])
+                : new Player(name, colors[i]);
             players.add(player);
         }
 
         engine = new GameEngine(players, market, gameMap);
+    }
+
+    public void checkAndRunBotTurn() {
+        Player current = engine.getCurrentPlayer();
+        if (!(current instanceof SimpleBot)) return;
+
+        if (engine.getCurrentPhase() == GamePhase.FINISHED) return;
+
+        PauseTransition delay = new PauseTransition(Duration.seconds(BOT_DELAY_SECONDS));
+        delay.setOnFinished(e -> {
+            if (engine.getCurrentPhase() == GamePhase.SETUP) {
+                runBotSetupTurn();
+            } else if (engine.getCurrentPhase() == GamePhase.NORMAL) {
+                runBotNormalTurn();
+            } else {
+                updateUI();
+            }
+        });
+        delay.play();
+    }
+
+    private void runBotSetupTurn() {
+        Player current = engine.getCurrentPlayer();
+        if (!(current instanceof SimpleBot)) return;
+
+        SimpleBot bot = (SimpleBot) current;
+        if (bot.getRole() == null) {
+            bot.setRole(FounderRole.NONE);
+        }
+
+        actionPane.updateStatus(bot.getName() + " (BOT)\nis setting up...");
+        updateUI();
+
+        PauseTransition thinkingDelay = new PauseTransition(Duration.seconds(0.6));
+        thinkingDelay.setOnFinished(e -> {
+            engine.playBotSetupTurn();
+            updateUI();
+
+            if (engine.getCurrentPhase() != GamePhase.FINISHED) {
+                checkAndRunBotTurn();
+            }
+        });
+        thinkingDelay.play();
+    }
+
+    private void runBotNormalTurn() {
+        Player current = engine.getCurrentPlayer();
+        if (!(current instanceof SimpleBot)) return;
+
+        SimpleBot bot = (SimpleBot) current;
+        actionPane.updateStatus(bot.getName() + " (BOT)\nis thinking...");
+        updateUI();
+
+        PauseTransition rollDelay = new PauseTransition(Duration.seconds(0.5));
+        rollDelay.setOnFinished(e -> {
+            try {
+                Dice dice = new Dice();
+                int total = engine.rollDice(dice);
+                dicePane.showDiceResult(dice.getLastDie1(), dice.getLastDie2());
+                engine.distributeResources(total);
+                engine.updateLongestNetworkAward();
+                actionPane.updateStatus(bot.getName() + " rolled " + total);
+                updateUI();
+
+                PauseTransition buildDelay = new PauseTransition(Duration.seconds(0.6));
+                buildDelay.setOnFinished(e2 -> {
+                    engine.playBotTurn(new Dice());
+                    engine.updateLongestNetworkAward();
+                    updateUI();
+
+                    if (engine.getCurrentPhase() == GamePhase.FINISHED) {
+                        showVictoryScreen();
+                    } else {
+                        checkAndRunBotTurn();
+                    }
+                });
+                buildDelay.play();
+            } catch (Exception ex) {
+                actionPane.updateStatus("Bot error: " + ex.getMessage());
+                updateUI();
+            }
+        });
+        rollDelay.play();
+    }
+
+    private void showVictoryScreen() {
+        Player winner = null;
+        for (Player p : engine.getPlayers()) {
+            if (p.countPlayerPoint() >= 10) {
+                winner = p;
+                break;
+            }
+        }
+
+        if (winner != null) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("Game Over!");
+            alert.setHeaderText(winner.getName() + " wins!");
+            alert.setContentText("Final score: " + winner.countPlayerPoint() + " points");
+            alert.showAndWait();
+        }
     }
 
     public void updateUI() {

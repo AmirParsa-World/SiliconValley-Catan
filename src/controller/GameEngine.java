@@ -514,7 +514,7 @@ public class GameEngine implements Serializable {
         }
     }
 
-    // 🤖 اجرای نوبت معمولی ربات به صورت کاملاً خودکار (استفاده از مپ داخلی)
+    // 🤖 Bot build phase only (dice rolling and turn advancement handled by UI)
     public void playBotTurn(Dice dice) {
         Player activePlayer = getCurrentPlayer();
         if (!(activePlayer instanceof SimpleBot)) {
@@ -522,17 +522,8 @@ public class GameEngine implements Serializable {
         }
 
         SimpleBot bot = (SimpleBot) activePlayer;
-        log("🤖 Bot " + bot.getName() + " is starting its turn automatically...");
+        log("🤖 Bot " + bot.getName() + " is deciding on builds...");
 
-        // ۱. فاز تاس ریختن
-        try {
-            int rollResult = rollDice(dice);
-            distributeResources(rollResult);
-        } catch (AlreadyRolledException e) {
-            // هندل کردن تکرار تاس در تست‌ها
-        }
-
-        // ۲. بررسی منابع برای ساخت MVP
         boolean canAffordMVP = bot.getResource(ResourceType.CAPITAL) >= 1 &&
                 bot.getResource(ResourceType.TALENT) >= 1 &&
                 bot.getResource(ResourceType.CLOUD) >= 1 &&
@@ -551,7 +542,6 @@ public class GameEngine implements Serializable {
             log("🤖 Bot " + bot.getName() + " does not have enough resources to build MVP.");
         }
 
-        // ۳. پایان خودکار نوبت
         nextTurn();
     }
 
