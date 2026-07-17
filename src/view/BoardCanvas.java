@@ -36,7 +36,8 @@ public class BoardCanvas extends StackPane {
         SETUP_ROAD,
         BUILD_MVP,
         BUILD_PARTNERSHIP,
-        UPGRADE_UNICORN
+        UPGRADE_UNICORN,
+        MOVE_AUDITOR
     }
 
     public BoardCanvas(model.Map gameMap, MainApp app) {
@@ -70,6 +71,9 @@ public class BoardCanvas extends StackPane {
                 break;
             case UPGRADE_UNICORN:
                 handleUpgradeUnicorn(mouseX, mouseY);
+                break;
+            case MOVE_AUDITOR:
+                handleMoveAuditor(mouseX, mouseY);
                 break;
         }
     }
@@ -251,6 +255,30 @@ public class BoardCanvas extends StackPane {
         app.getActionPane().updateStatus("Click your MVP\nto upgrade to Unicorn");
     }
 
+    public void enterMoveAuditorMode() {
+        buildMode = BuildMode.MOVE_AUDITOR;
+        selectedVertex = null;
+        app.getActionPane().updateStatus("Click a sector\nto move the Auditor");
+        redraw();
+    }
+
+    private void handleMoveAuditor(double mouseX, double mouseY) {
+        int col = (int) ((mouseX - PADDING) / SQUARE_SIZE);
+        int row = (int) ((mouseY - PADDING) / SQUARE_SIZE);
+
+        if (row < 0 || row >= 5 || col < 0 || col >= 5) return;
+
+        try {
+            Player current = app.getEngine().getCurrentPlayer();
+            app.getEngine().moveAuditor(current, row, col);
+            buildMode = BuildMode.NONE;
+            app.getActionPane().updateStatus("Auditor moved!");
+            app.updateUI();
+        } catch (Exception e) {
+            app.getActionPane().updateStatus("Error: " + e.getMessage());
+        }
+    }
+
     public void cancelBuildMode() {
         buildMode = BuildMode.NONE;
         selectedVertex = null;
@@ -262,6 +290,10 @@ public class BoardCanvas extends StackPane {
 
     public boolean isBuildMode() {
         return buildMode != BuildMode.NONE;
+    }
+
+    public boolean isAuditorMovePending() {
+        return buildMode == BuildMode.MOVE_AUDITOR;
     }
 
     private void chooseRole(Player player) {

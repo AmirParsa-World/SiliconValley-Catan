@@ -114,7 +114,8 @@ public class MainApp extends Application {
     }
 
     // Handle discard flow: shows dialog for humans, auto-discards for bots
-    // Then calls onDone when all discards are complete
+    // Then handles auditor movement if it was a 7 roll
+    // Then calls onDone when all complete
     public void handleDiscardFlow(java.util.Map<Player, Integer> discardMap, Runnable onDone) {
         if (discardMap == null || discardMap.isEmpty()) {
             onDone.run();
@@ -122,7 +123,105 @@ public class MainApp extends Application {
         }
 
         List<Player> affectedPlayers = new ArrayList<>(discardMap.keySet());
-        processNextDiscard(discardMap, affectedPlayers, 0, onDone);
+        processNextDiscard(discardMap, affectedPlayers, 0, () -> {
+            // After all discards, handle auditor movement
+            handleAuditorMovement(onDone);
+        });
+    }
+
+    private void handleAuditorMovement(Runnable onDone) {
+        Player current = engine.getCurrentPlayer();
+
+        if (current instanceof SimpleBot) {
+            // Bot auto-moves auditor to a random valid sector
+            actionPane.updateStatus(current.getName() + " (BOT)\nmoving Auditor...");
+            updateUI();
+
+            PauseTransition delay = new PauseTransition(Duration.seconds(0.5));
+            delay.setOnFinished(e -> {
+                autoMoveAuditor((SimpleBot) current);
+                updateUI();
+                PauseTransition afterDelay = new PauseTransition(Duration.seconds(0.5));
+                afterDelay.setOnFinished(e2 -> onDone.run());
+                afterDelay.play();
+            });
+            delay.play();
+        } else {
+            // Human clicks a sector to move the auditor
+            actionPane.updateStatus(current.getName() + ",\nclick a sector to\nmove the Auditor");
+            updateUI();
+            boardCanvas.enterMoveAuditorMode();
+
+            // Wait for the board canvas click to complete the move
+            // The enterMoveAuditorMode sets up the click handler which calls
+            // moveAuditor and then buildMode = NONE. We poll for completion.
+            waitForAuditorMove(onDone);
+        }
+    }
+
+    private void waitForAuditorMove(Runnable onDone) {
+        PauseTransition check = new PauseTransition(Duration.seconds(0.2));
+        check.setOnFinished(e -> {
+            if (boardCanvas.isAuditorMovePending()) {
+                waitForAuditorMove(onDone);
+            } else {
+                onDone.run();
+            }
+        });
+        check.play();
+    }
+
+    private void autoMoveAuditor(SimpleBot bot) {
+        // Find a random sector with player structures (or any if none have structures)
+        model.Sector[][] sectors = gameMap.getSectors();
+        java.util.List<int[]> validTargets = new java.util.ArrayList<>();
+
+        boolean anyHasStructures = false;
+        for (int r = 0; r < 5; r++) {
+            for (int c = 0; c < 5; c++) {
+                model.Sector s = sectors[r][c];
+                if (s != null && !s.isBlocked() && hasPlayersOnSector(s)) {
+                    validTargets.add(new int[]{r, c});
+                    anyHasStructures = true;
+                }
+            }
+        }
+
+        if (!anyHasStructures) {
+            for (int r = 0; r < 5; r++) {
+                for (int c = 0; c < 5; c++) {
+                    if (sectors[r][c] != null && !sectors[r][c].isBlocked()) {
+                        validTargets.add(new int[]{r, c});
+                    }
+                }
+            }
+        }
+
+        if (!validTargets.isEmpty()) {
+            int[] target = validTargets.get(new java.util.Random().nextInt(validTargets.size()));
+            try {
+                engine.moveAuditor(bot, target[0], target[1]);
+            } catch (Exception e) {
+                // If move fails, try any valid sector
+                for (int[] t : validTargets) {
+                    try {
+                        engine.moveAuditor(bot, t[0], t[1]);
+                        break;
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
+    }
+
+    private boolean hasPlayersOnSector(model.Sector sector) {
+        model.Vertex[] corners = {
+            sector.getBottomLeft(), sector.getBottomRight(),
+            sector.getTopLeft(), sector.getTopRight()
+        };
+        for (model.Vertex v : corners) {
+            if (v != null && v.hasStructure()) return true;
+        }
+        return false;
     }
 
     private void processNextDiscard(java.util.Map<Player, Integer> discardMap,
