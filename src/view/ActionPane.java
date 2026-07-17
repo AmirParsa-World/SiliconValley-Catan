@@ -143,9 +143,15 @@ public class ActionPane extends VBox {
 
             app.getDicePane().showDiceResult(dice.getLastDie1(), dice.getLastDie2());
             statusLabel.setText("Rolled: " + total);
-            engine.distributeResources(total);
+
+            java.util.Map<Player, Integer> discardMap = engine.distributeResources(total);
             engine.updateLongestNetworkAward();
             app.updateUI();
+
+            // Handle discard flow if roll was 7
+            app.handleDiscardFlow(discardMap, () -> {
+                app.updateUI();
+            });
         } catch (Exception e) {
             statusLabel.setText("Error: " + e.getMessage());
         }

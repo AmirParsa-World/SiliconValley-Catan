@@ -20,7 +20,7 @@ import javafx.util.Duration;
 
 public class MainApp extends Application {
     private GameEngine engine;
-    private Map gameMap;
+    private model.Map gameMap;
     private Market market;
     private BoardCanvas boardCanvas;
     private PlayerInfoPane playerInfoPane;
@@ -63,7 +63,6 @@ public class MainApp extends Application {
 
         updateUI();
 
-        // If first player is a bot, auto-play after a short delay
         PauseTransition startupDelay = new PauseTransition(Duration.seconds(0.3));
         startupDelay.setOnFinished(e -> checkAndRunBotTurn());
         startupDelay.play();
@@ -112,6 +111,58 @@ public class MainApp extends Application {
         }
 
         engine = new GameEngine(players, market, gameMap);
+    }
+
+    // Handle discard flow: shows dialog for humans, auto-discards for bots
+    // Then calls onDone when all discards are complete
+    public void handleDiscardFlow(java.util.Map<Player, Integer> discardMap, Runnable onDone) {
+        if (discardMap == null || discardMap.isEmpty()) {
+            onDone.run();
+            return;
+        }
+
+        List<Player> affectedPlayers = new ArrayList<>(discardMap.keySet());
+        processNextDiscard(discardMap, affectedPlayers, 0, onDone);
+    }
+
+    private void processNextDiscard(java.util.Map<Player, Integer> discardMap,
+                                     List<Player> affectedPlayers, int index, Runnable onDone) {
+        if (index >= affectedPlayers.size()) {
+            onDone.run();
+            return;
+        }
+
+        Player player = affectedPlayers.get(index);
+        int amount = discardMap.get(player);
+
+        if (player instanceof SimpleBot) {
+            // Bots auto-discard randomly
+            player.discardRandomResources(amount);
+            actionPane.updateStatus(player.getName() + " (BOT)\ndiscarded " + amount + " cards.");
+            updateUI();
+
+            PauseTransition delay = new PauseTransition(Duration.seconds(0.5));
+            delay.setOnFinished(e -> processNextDiscard(discardMap, affectedPlayers, index + 1, onDone));
+            delay.play();
+        } else {
+            // Human players choose which cards to discard
+            actionPane.updateStatus(player.getName() + ",\nchoose cards to discard!");
+            updateUI();
+
+            PauseTransition showDelay = new PauseTransition(Duration.seconds(0.3));
+            showDelay.setOnFinished(e -> {
+                Platform.runLater(() -> {
+                    DiscardDialog.show(player, amount);
+                    actionPane.updateStatus(player.getName() + "\ndiscarded " + amount + " cards.");
+                    updateUI();
+
+                    PauseTransition nextDelay = new PauseTransition(Duration.seconds(0.5));
+                    nextDelay.setOnFinished(e2 -> processNextDiscard(discardMap, affectedPlayers, index + 1, onDone));
+                    nextDelay.play();
+                });
+            });
+            showDelay.play();
+        }
     }
 
     public void checkAndRunBotTurn() {
@@ -171,24 +222,27 @@ public class MainApp extends Application {
                 Dice dice = new Dice();
                 int total = engine.rollDice(dice);
                 dicePane.showDiceResult(dice.getLastDie1(), dice.getLastDie2());
-                engine.distributeResources(total);
+                java.util.Map<Player, Integer> discardMap = engine.distributeResources(total);
                 engine.updateLongestNetworkAward();
                 actionPane.updateStatus(bot.getName() + " rolled " + total);
                 updateUI();
 
-                PauseTransition buildDelay = new PauseTransition(Duration.seconds(0.6));
-                buildDelay.setOnFinished(e2 -> {
-                    engine.playBotTurn(new Dice());
-                    engine.updateLongestNetworkAward();
-                    updateUI();
+                // Handle discard flow if needed (roll of 7)
+                handleDiscardFlow(discardMap, () -> {
+                    PauseTransition buildDelay = new PauseTransition(Duration.seconds(0.6));
+                    buildDelay.setOnFinished(e2 -> {
+                        engine.playBotTurn(new Dice());
+                        engine.updateLongestNetworkAward();
+                        updateUI();
 
-                    if (engine.getCurrentPhase() == GamePhase.FINISHED) {
-                        showVictoryScreen();
-                    } else {
-                        checkAndRunBotTurn();
-                    }
+                        if (engine.getCurrentPhase() == GamePhase.FINISHED) {
+                            showVictoryScreen();
+                        } else {
+                            checkAndRunBotTurn();
+                        }
+                    });
+                    buildDelay.play();
                 });
-                buildDelay.play();
             } catch (Exception ex) {
                 actionPane.updateStatus("Bot error: " + ex.getMessage());
                 updateUI();
@@ -224,7 +278,7 @@ public class MainApp extends Application {
     }
 
     public GameEngine getEngine() { return engine; }
-    public Map getGameMap() { return gameMap; }
+    public model.Map getGameMap() { return gameMap; }
     public Market getMarket() { return market; }
     public DicePane getDicePane() { return dicePane; }
     public BoardCanvas getBoardCanvas() { return boardCanvas; }

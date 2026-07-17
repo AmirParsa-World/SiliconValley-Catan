@@ -179,9 +179,11 @@ public class GameEngine implements Serializable {
         }
     }
 
-    // 🚨 مدیریت بحران مالیاتی (تاس ۷)
-    public void triggerRegulatoryCrisis() {
-        log("🚨 REGULATORY CRISIS TRIPPED! Tax authorities are auditing players..."); // 📝 ثبت لاگ بحران
+    // Returns map of players who need to discard, and how many cards each
+    public java.util.Map<Player, Integer> triggerRegulatoryCrisis() {
+        log("🚨 REGULATORY CRISIS TRIPPED! Tax authorities are auditing players...");
+
+        java.util.Map<Player, Integer> discardMap = new java.util.LinkedHashMap<>();
 
         for (Player player : players) {
             int holdingLimit = (player.getRole() == FounderRole.VC_FUNDED) ? 9 : 7;
@@ -189,16 +191,13 @@ public class GameEngine implements Serializable {
 
             if (totalCards > holdingLimit) {
                 int cardsToDiscard = totalCards / 2;
-
-                log("💸 TAXED: " + player.getName() + " had " + totalCards + " cards (limit is " + holdingLimit + ") and lost " + cardsToDiscard + " resources!");
-                // کسر خودکار کارت‌ها برای سناریوی تست بک‌اند
-                player.discardRandomResources(cardsToDiscard);
-                System.out.println("📉 [Backend Auto-Discard] " + player.getName() + "'s hand reduced after penalty.");
-
-                promptPlayerForDiscard(player, cardsToDiscard);
+                log("💸 TAXED: " + player.getName() + " had " + totalCards + " cards (limit is " + holdingLimit + ") must discard " + cardsToDiscard + "!");
+                discardMap.put(player, cardsToDiscard);
             }
         }
+
         enableBlockerMovementPhase();
+        return discardMap;
     }
 
     // 🏗️ بررسی قانون فاصله ۲ یال برای ساخت سازه جدید
@@ -222,11 +221,10 @@ public class GameEngine implements Serializable {
         System.out.println("[UI Stub] Regulatory Auditor Blocker is ready to be moved on the map.");
     }
 
-    // 💎 سیستم توزیع منابع بر اساس عدد تاس (استفاده مستقیم از this.gameMap)
-    public void distributeResources(int rollValue) {
+    // Distribute resources based on dice roll. Returns discard map if roll is 7, null otherwise.
+    public java.util.Map<Player, Integer> distributeResources(int rollValue) {
         if (rollValue == 7) {
-            triggerRegulatoryCrisis();
-            return;
+            return triggerRegulatoryCrisis();
         }
 
         log("🎲 Dice rolled: " + rollValue + ". Distributing resources...");
@@ -255,6 +253,7 @@ public class GameEngine implements Serializable {
                 }
             }
         }
+        return null;
     }
 
     // 🕸️ محاسبه طول بلندترین جاده متصل (بدون نیاز به پاس دادن دستی نقشه)
