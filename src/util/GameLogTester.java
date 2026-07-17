@@ -17,7 +17,9 @@ public class GameLogTester {
         players.add(jahan);
         players.add(baran);
 
-        GameEngine engine = new GameEngine(players, new Market());
+        // 🛠️ اصلاح کانتراکتور: ساخت یک مپ تستی و پاس دادن آن به عنوان پارامتر سوم
+        Map testMap = new Map();
+        GameEngine engine = new GameEngine(players, new Market(), testMap);
 
         // ۲. شبیه‌سازی فاز SETUP (رفت و برگشت نوبت‌ها به صورت اسنیک درفت)
         engine.log("Game initialized with " + players.size() + " players.");

@@ -1,6 +1,7 @@
 package util;
 
 import controller.GameEngine;
+import model.Map;
 import model.Player;
 import controller.Market;
 import util.SaveManager;
@@ -12,12 +13,16 @@ public class PersistenceTester {
         // ۱. ساخت یک انجین واقعی با داده‌های تست
         List<Player> players = new ArrayList<>();
         players.add(new Player("Jahan", "Red"));
-        players.get(0).addResource(model.ResourceType.CAPITAL, 5);
 
-        GameEngine originalEngine = new GameEngine(players, new Market());
+        // بروزرسانی به جاوا ۲۱: استفاده از getFirst() به جای get(0)
+        players.getFirst().addResource(model.ResourceType.CAPITAL, 5);
+
+        Map testMap = new Map();
+        GameEngine engine = new GameEngine(players, new Market(), testMap);
 
         System.out.println("🚀 Saving game...");
-        SaveManager.saveGameAsync("test_save.dat", originalEngine);
+        // 🛠️ اصلاح نام متغیر از originalEngine به engine
+        SaveManager.saveGameAsync("test_save.dat", engine);
 
         // صبر کردن برای اینکه ترد پس‌زمینه کارش را تمام کند (مخصوص تست)
         Thread.sleep(1000);

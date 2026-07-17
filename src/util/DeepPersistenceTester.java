@@ -15,7 +15,8 @@ public class DeepPersistenceTester {
         p1.addResource(ResourceType.DATA, 10);
         players.add(p1);
 
-        GameEngine engine = new GameEngine(players, new Market());
+        Map testMap = new Map();
+        GameEngine engine = new GameEngine(players, new Market(), testMap);
 
         // ۲. ایجاد تغییرات در وضعیت بازی (شبیه‌سازیِ جلو رفتن بازی)
         engine.nextTurn(); // فرض کن مرحله رفت و برگشت تموم شد
