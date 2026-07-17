@@ -1,6 +1,10 @@
 package model;
 
-public class MVP extends Structure {
+import java.io.Serializable;
+
+public class MVP extends Structure implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     public MVP(Player owner, Vertex vertex) {
         super(owner, vertex);
