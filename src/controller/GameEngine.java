@@ -561,8 +561,4 @@ public class GameEngine implements Serializable {
         }
         return null;
     }
-
-    public Market getMarket() {
-        return this.market;
-    }
 }

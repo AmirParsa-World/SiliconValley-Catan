@@ -71,7 +71,11 @@ public class MainApp extends Application {
 
             Optional<ButtonType> result = exitAlert.showAndWait();
             if (result.isPresent() && result.get() == ButtonType.YES) {
-                SaveManager.saveGameAsync(SAVE_FILE_PATH, engine);
+                try {
+                    SaveManager.saveGame(SAVE_FILE_PATH, engine);
+                } catch (Exception e) {
+                    System.err.println("Failed to save game: " + e.getMessage());
+                }
             } else if (result.isPresent() && result.get() == ButtonType.CANCEL) {
                 event.consume();
             }
@@ -121,7 +125,7 @@ public class MainApp extends Application {
     }
 
     private void loadSavedGame(Stage stage) {
-        SaveManager.loadGameAsync(SAVE_FILE_PATH, new SaveManager.LoadGameCallback() {
+        SaveManager.loadGame(SAVE_FILE_PATH, new SaveManager.LoadGameCallback() {
             @Override
             public void onSuccess(GameEngine loadedEngine) {
                 Platform.runLater(() -> {
@@ -171,7 +175,11 @@ public class MainApp extends Application {
     }
 
     public void triggerManualSave() {
-        SaveManager.saveGameAsync(SAVE_FILE_PATH, engine);
+        try {
+            SaveManager.saveGame(SAVE_FILE_PATH, engine);
+        } catch (Exception e) {
+            System.err.println("Failed to save game: " + e.getMessage());
+        }
         Alert alert = new Alert(Alert.AlertType.INFORMATION, "Your current game state has been saved in background!");
         alert.setTitle("Game Saved");
         alert.setHeaderText(null);
