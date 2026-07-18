@@ -4,8 +4,10 @@ import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import model.*;
@@ -66,7 +68,6 @@ public class ActionPane extends VBox {
         endTurnBtn = createButton("End Turn");
         endTurnBtn.setOnAction(e -> endTurn());
 
-        // 💾 تمیزکاری و ساخت دکمه‌های سیو و لود (بدون تکرار کد)
         saveGameBtn = createButton("Save Game 💾");
         saveGameBtn.setOnAction(e -> app.triggerManualSave());
         saveGameBtn.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white;");
@@ -75,9 +76,12 @@ public class ActionPane extends VBox {
         loadGameBtn.setOnAction(e -> app.triggerManualLoad());
         loadGameBtn.setStyle("-fx-background-color: #9C27B0; -fx-text-fill: white;");
 
-        // چینش نهایی همه‌ی المان‌ها در یک قاب متصل
+        // 🎨 ساخت کارت راهنمای هوشمند و شیک سکتورها
+        VBox legendBox = createLegendBox();
+
+        // 🏁 چینش نهایی: کامپوننت راهنما دقیقاً در انتهای پنل اضافه شد
         this.getChildren().addAll(title, phaseLabel, statusLabel, startSetupBtn, rollDiceBtn,
-                buildMVPBtn, upgradeUnicornBtn, buildPartnershipBtn, endTurnBtn, saveGameBtn, loadGameBtn);
+                buildMVPBtn, upgradeUnicornBtn, buildPartnershipBtn, endTurnBtn, saveGameBtn, loadGameBtn, legendBox);
 
         update();
     }
@@ -87,6 +91,48 @@ public class ActionPane extends VBox {
         btn.setPrefWidth(180);
         btn.setFont(Font.font("Arial", FontWeight.NORMAL, 13));
         return btn;
+    }
+
+    // 🔮 متد کمکی برای خلق کارت راهنمای رنگ‌ها با یوآی کاملاً مدرن و خوانا
+    private VBox createLegendBox() {
+        VBox box = new VBox(6);
+        box.setStyle("-fx-padding: 10; -fx-background-color: #ffffff; -fx-background-radius: 6; -fx-border-color: #ddd; -fx-border-radius: 6; -fx-margin-top: 10;");
+
+        Label titleLabel = new Label("⚡ Tech Sectors:");
+        titleLabel.setFont(Font.font("Arial", FontWeight.BOLD, 12));
+        titleLabel.setStyle("-fx-text-fill: #333;");
+        box.getChildren().add(titleLabel);
+
+        // داده‌های سکتورها: {نام، کد رنگ هگز}
+        String[][] sectorsInfo = {
+                {"Talent (AI Hub)", "#90EE90"},
+                {"Capital (Fintech)", "#FFD700"},
+                {"Cloud (Campus)", "#87CEEB"},
+                {"Patent (IP Quarter)", "#D3D3D3"},
+                {"Data (Valley)", "#FFB6C1"},
+                {"Regulatory Zone", "#FFA07A"}
+        };
+
+        for (String[] info : sectorsInfo) {
+            HBox row = new HBox(8);
+            row.setStyle("-fx-alignment: center-left;");
+
+            // ساخت یک مربع رنگی کوچک و شیک به عنوان اندیکاتور رنگی
+            Rectangle colorIndicator = new Rectangle(12, 12);
+            colorIndicator.setArcWidth(4);
+            colorIndicator.setArcHeight(4);
+            colorIndicator.setFill(Color.web(info[1]));
+            colorIndicator.setStroke(Color.web("#555555"));
+            colorIndicator.setStrokeWidth(1);
+            Label nameLabel = new Label(info[0]);
+            nameLabel.setFont(Font.font("Arial", FontWeight.SEMI_BOLD, 11));
+            nameLabel.setStyle("-fx-text-fill: #444;");
+
+            row.getChildren().addAll(colorIndicator, nameLabel);
+            box.getChildren().add(row);
+        }
+
+        return box;
     }
 
     public void update() {
@@ -105,7 +151,6 @@ public class ActionPane extends VBox {
             phaseLabel.setTextFill(Color.RED);
         }
 
-        // 🎯 هوشمندسازی لِیبل وضعیت: اگر در حال ساخت‌وساز هستیم یا اروری روی صفحه است، آن را فوراً پاک نکن!
         boolean boardIsBusy = app.getBoardCanvas() != null && app.getBoardCanvas().isBuildMode();
         if (!boardIsBusy && !statusLabel.getText().startsWith("Error:")) {
             String botTag = isBot ? " [BOT]" : "";
@@ -132,7 +177,6 @@ public class ActionPane extends VBox {
         endTurnBtn.setManaged(isNormal && !isBot);
 
         if (isNormal && !isBot) {
-            // دکمه‌ها فقط زمانی قفل شوند که بازرس در حال حرکت است
             boolean auditorIsMoving = app.getBoardCanvas().isAuditorMovePending();
 
             rollDiceBtn.setDisable(engine.hasRolledThisTurn() || auditorIsMoving);
@@ -142,6 +186,7 @@ public class ActionPane extends VBox {
             endTurnBtn.setDisable(!engine.hasRolledThisTurn() || auditorIsMoving);
         }
     }
+
     public void updateStatus(String message) {
         statusLabel.setText(message);
     }
@@ -180,7 +225,7 @@ public class ActionPane extends VBox {
 
     private void buildMVP() {
         app.getBoardCanvas().enterBuildMVPMode();
-        app.updateUI(); // 🔄 نوسازی وضعیت دکمه‌ها
+        app.updateUI();
     }
 
     private void upgradeToUnicorn() {

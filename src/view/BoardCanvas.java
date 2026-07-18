@@ -25,6 +25,7 @@ public class BoardCanvas extends StackPane {
     private final MainApp app;
     private final Canvas canvas;
     private final int SQUARE_SIZE;
+    private final int VERTEX_SIZE;
     private final int PADDING = 50;
 
     private BuildMode buildMode = BuildMode.NONE;
@@ -47,11 +48,21 @@ public class BoardCanvas extends StackPane {
         int sectorRows = gameMap.getSectors().length;
         int sectorCols = gameMap.getSectors()[0].length;
 
-        // 🔮 فرمول هوشمند: هر چقدر نقشه بزرگ‌تر باشد، ابعاد مربع‌ها کوچک‌تر می‌شود تا مپ فیتِ صفحه بماند
-        if (sectorRows <= 5) {
+        // 🔮 محاسبه دوطرفه ابعاد خانه‌ها و گره‌ها برای فیت شدن بی‌نقص در صفحه
+        if (sectorRows <= 3) {
+            this.SQUARE_SIZE = 140;
+            this.VERTEX_SIZE = 28;
+        } else if (sectorRows == 4) {
+            this.SQUARE_SIZE = 120;
+            this.VERTEX_SIZE = 26;
+        } else if (sectorRows == 5) {
             this.SQUARE_SIZE = 100;
+            this.VERTEX_SIZE = 24;
         } else {
+            // برای مپ‌های ۶ تا ۱۰، کل عرض نقشه را روی ۵۰۰ پیکسل فیکس نگه می‌دارد
             this.SQUARE_SIZE = 500 / sectorRows;
+            // گره‌ها هم متناسب با ابعاد سکتور ریزتر می‌شوند تا فضا شلوغ نشود
+            this.VERTEX_SIZE = Math.max(12, 120 / sectorRows);
         }
 
         double canvasWidth = sectorCols * SQUARE_SIZE + (PADDING * 2.0);
@@ -498,34 +509,31 @@ public class BoardCanvas extends StackPane {
         gc.fillRect(x, y, SQUARE_SIZE, SQUARE_SIZE);
 
         gc.setStroke(Color.BLACK);
-        gc.setLineWidth(2);
+        gc.setLineWidth(1.5);
         gc.strokeRect(x, y, SQUARE_SIZE, SQUARE_SIZE);
 
+        // 🎯 تغییر طلایی: فقط عدد تاس را می‌نویسیم (اندازه فونت متناسب با SQUARE_SIZE)
+        double fontSize = SQUARE_SIZE * 0.25;
+        gc.setFont(Font.font("Arial", FontWeight.BOLD, fontSize));
         gc.setFill(Color.BLACK);
-        gc.setFont(Font.font("Arial", FontWeight.BOLD, 11));
-        String resourceName = sector.getResourceType().getDisplayName();
-        double textWidth = resourceName.length() * 6.5;
-        gc.fillText(resourceName, x + (SQUARE_SIZE - textWidth) / 2, y + SQUARE_SIZE / 2 - 8);
 
-        gc.setFont(Font.font("Arial", FontWeight.BOLD, 18));
         String numStr = String.valueOf(sector.getActivationNumber());
-        textWidth = numStr.length() * 11;
-        gc.fillText(numStr, x + (SQUARE_SIZE - textWidth) / 2, y + SQUARE_SIZE / 2 + 15);
+        // تقریب زدن مرکز کاشی برای نوشتن عدد تاس
+        gc.fillText(numStr, x + (SQUARE_SIZE / 2.0) - (fontSize * 0.3 * numStr.length()), y + (SQUARE_SIZE / 2.0) + (fontSize * 0.3));
 
         if (sector.isBlocked()) {
             gc.setFill(Color.rgb(255, 0, 0, 0.4));
             gc.fillRect(x, y, SQUARE_SIZE, SQUARE_SIZE);
             gc.setFill(Color.RED);
-            gc.setFont(Font.font("Arial", FontWeight.BOLD, 12));
-            gc.fillText("BLOCKED", x + 15, y + SQUARE_SIZE / 2 + 4);
+            gc.setFont(Font.font("Arial", FontWeight.BOLD, Math.max(9, SQUARE_SIZE * 0.15)));
+            gc.fillText("BLOCKED", x + (SQUARE_SIZE * 0.1), y + (SQUARE_SIZE / 2.0));
         }
 
         if (buildMode == BuildMode.MOVE_AUDITOR) {
             gc.setStroke(Color.CYAN);
-            gc.setLineWidth(3);
-            gc.strokeRect(x + 3, y + 3, SQUARE_SIZE - 6, SQUARE_SIZE - 6);
+            gc.setLineWidth(2.5);
+            gc.strokeRect(x + 2, y + 2, SQUARE_SIZE - 4, SQUARE_SIZE - 4);
         }
-
     }
 
     private void drawEdges(GraphicsContext gc) {
@@ -578,40 +586,38 @@ public class BoardCanvas extends StackPane {
         for (int row = 0; row < vertexRows; row++) {
             for (int col = 0; col < vertexCols; col++) {
                 Vertex vertex = gameMap.getVertices()[row][col];
-                drawVertex(gc, vertex, row, col);
+                drawVertex(gc, vertex);
             }
         }
     }
 
-    private void drawVertex(GraphicsContext gc, Vertex vertex, int row, int col) {
+    private void drawVertex(GraphicsContext gc, Vertex vertex) {
         double x = getVertexX(vertex);
         double y = getVertexY(vertex);
-        int size = 24;
+        double size = VERTEX_SIZE;
 
         if (vertex.hasStructure()) {
             gc.setFill(getPlayerColor(vertex.getOwner()));
-            gc.fillOval(x - size / 2, y - size / 2, size, size);
+            gc.fillOval(x - size / 2.0, y - size / 2.0, size, size);
 
             gc.setStroke(Color.BLACK);
-            gc.setLineWidth(3);
-            gc.strokeOval(x - size / 2, y - size / 2, size, size);
+            gc.setLineWidth(size > 15 ? 3 : 1.5);
+            gc.strokeOval(x - size / 2.0, y - size / 2.0, size, size);
 
-            if (vertex.getStructure() instanceof Unicorn) {
-                gc.setFill(Color.GOLD);
-                gc.setFont(Font.font("Arial", FontWeight.BOLD, 14));
-                gc.fillText("U", x - 5, y + 5);
-            } else {
-                gc.setFill(Color.WHITE);
-                gc.setFont(Font.font("Arial", FontWeight.BOLD, 14));
-                gc.fillText("M", x - 5, y + 5);
-            }
-        } else {
             gc.setFill(Color.WHITE);
-            gc.fillOval(x - 10, y - 10, 20, 20);
+            // تنظیم داینامیک سایز فونت حروف M و U
+            gc.setFont(Font.font("Arial", FontWeight.BOLD, size * 0.6));
+            String label = (vertex.getStructure() instanceof Unicorn) ? "U" : "M";
+            gc.fillText(label, x - (size * 0.2), y + (size * 0.2));
+        } else {
+            // گره‌های خالی و کوچک نقشه
+            double emptySize = size * 0.75;
+            gc.setFill(Color.WHITE);
+            gc.fillOval(x - emptySize / 2.0, y - emptySize / 2.0, emptySize, emptySize);
 
             gc.setStroke(Color.web("#666666"));
-            gc.setLineWidth(2);
-            gc.strokeOval(x - 10, y - 10, 20, 20);
+            gc.setLineWidth(1.5);
+            gc.strokeOval(x - emptySize / 2.0, y - emptySize / 2.0, emptySize, emptySize);
         }
     }
 
