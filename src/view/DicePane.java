@@ -28,6 +28,7 @@ public class DicePane extends HBox {
         this.setSpacing(30);
         this.setStyle("-fx-padding: 15; -fx-background-color: #c0c0c0; -fx-border-color: #999; -fx-border-width: 0 0 2 0;");
         this.setPrefHeight(90);
+        // ❌ خط ۳۱ مزاحم و قدیمی از اینجا کاملاً حذف شد تا جلو کرش گرفته شود!
 
         Label dice1Text = new Label("Dice 1:");
         dice1Text.setFont(Font.font("Arial", FontWeight.NORMAL, 16));
@@ -49,18 +50,20 @@ public class DicePane extends HBox {
         StackPane dice1Pane = new StackPane(dice1Canvas);
         StackPane dice2Pane = new StackPane(dice2Canvas);
 
+        // 🌟 ۱. ابتدا ساخت و نیو کردن قطعی کامپوننت برای ریشه‌کن شدن NullPointerException
         liveTickerLabel = new Label("✨ Game Started! Welcome to Silicon Valley Catan.");
         liveTickerLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
         liveTickerLabel.setStyle("-fx-background-color: #424242; -fx-padding: 8 15; -fx-background-radius: 5; -fx-text-fill: white;");
-        liveTickerLabel.setWrapText(true);
-        liveTickerLabel.setPrefWidth(700); // 💡 افزایش پهنای باکس برای جاگیری کلمات افقی
-        liveTickerLabel.setPrefHeight(45);
-        HBox.setMargin(liveTickerLabel, new javafx.geometry.Insets(0, 0, 0, 40)); // فاصله دادن از عدد تاس
+        liveTickerLabel.setWrapText(true); // 💡 اینجا بعد از new شدن کاملاً جایش امن است!
+        liveTickerLabel.setPrefWidth(700);  // 💡 پهنای مناسب داشبورد
+        liveTickerLabel.setPrefHeight(95); // 💡 ارتفاع مناسب برای ۲ الی ۳ خط لاگ زیر هم
 
+        // ⚡ ۲. خروج دستور تنظیم فاصله از خط کامنت قبلی جهت اجرای صحیح
+        HBox.setMargin(liveTickerLabel, new javafx.geometry.Insets(0, 0, 0, 40));
+
+        // 🏁 ۳. اضافه کردن نهایی تمام کامپوننت‌ها (شامل متون راهنما) به پنل تاس
         this.getChildren().addAll(dice1Text, dice1Pane, dice2Text, dice2Pane, totalText, totalLabel, liveTickerLabel);
-
     }
-
     private void drawBlankDie(Canvas canvas) {
         GraphicsContext gc = canvas.getGraphicsContext2D();
         gc.clearRect(0, 0, DIE_SIZE, DIE_SIZE);
@@ -131,7 +134,12 @@ public class DicePane extends HBox {
     }
 
     public void update() {
-        // Keep showing last dice result
+        // Refresh dice display if results exist
+        if (totalLabel != null && !totalLabel.getText().equals("-")) {
+            // Redraw dice canvases to ensure they're visible
+            dice1Canvas.getParent().requestLayout();
+            dice2Canvas.getParent().requestLayout();
+        }
     }
 
     public void showDiceResult(int dice1, int dice2) {
@@ -146,6 +154,9 @@ public class DicePane extends HBox {
         } else {
             totalLabel.setTextFill(Color.BLACK);
         }
+
+        // Visual feedback: highlight the dice pane background briefly
+        this.setStyle("-fx-padding: 15; -fx-background-color: #e0e0e0; -fx-border-color: #4CAF50; -fx-border-width: 0 0 2 0;");
     }
 
     public void updateLiveTicker(String message, String type) {

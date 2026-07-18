@@ -4,16 +4,17 @@ import javafx.animation.PauseTransition;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
-import javafx.scene.control.ButtonType;
-import javafx.scene.control.ChoiceDialog;
+import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import controller.GameEngine;
 import controller.GamePhase;
 import controller.Market;
 import model.*;
-import util.SaveManager; // 📥 اضافه شدن پکیج ابزار ذخیره‌سازی شما
+import util.SaveManager;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -21,23 +22,26 @@ import javafx.util.Duration;
 
 public class MainApp extends Application {
     private GameEngine engine;
+    private int humanStartLogSize = 0;
     private model.Map gameMap;
     private Market market;
-    private BorderPane root; // 🛠️ تبدیل به فیلد کلاس برای دسترسی متد لود به تغییر چیدمان صفحه
+    private BorderPane root;
     private BoardCanvas boardCanvas;
     private PlayerInfoPane playerInfoPane;
     private MarketPane marketPane;
     private ActionPane actionPane;
     private DicePane dicePane;
+    private Stage primaryStage;
 
     private static final double BOT_DELAY_SECONDS = 0.8;
-    private static final String SAVE_FILE_PATH = "savegame.dat"; // 💾 نام پیش‌فرض فایل ذخیره بازی
+    private static final String SAVE_FILE_PATH = "savegame.dat";
 
     @Override
     public void start(Stage primaryStage) {
+        this.primaryStage = primaryStage;
+
         root = new BorderPane();
 
-        // 🔍 گام اول: بررسی اینکه آیا کاربر می‌خواهد بازی قبلی را لود کند؟
         Alert loadAlert = new Alert(Alert.AlertType.CONFIRMATION);
         loadAlert.setTitle("Silicon Valley Catan");
         loadAlert.setHeaderText("Welcome back!");
@@ -49,10 +53,8 @@ public class MainApp extends Application {
         Optional<ButtonType> loadResult = loadAlert.showAndWait();
 
         if (loadResult.isPresent() && loadResult.get() == buttonYes) {
-            // تلاش برای بارگذاری بازی
             loadSavedGame(primaryStage);
         } else {
-            // شروع بازی جدید طبق روال عادی باران
             startNewGameFlow();
         }
 
@@ -61,7 +63,6 @@ public class MainApp extends Application {
         primaryStage.setTitle("Silicon Valley Catan");
         primaryStage.setScene(scene);
 
-        // 🚪 هوشمندی در لحظه خروج: اگر کاربر ضربدر پنجره را زد، بپرسد سیو شود یا نه
         primaryStage.setOnCloseRequest(event -> {
             Alert exitAlert = new Alert(Alert.AlertType.CONFIRMATION,
                     "Do you want to save the game before exiting?",
@@ -71,17 +72,19 @@ public class MainApp extends Application {
 
             Optional<ButtonType> result = exitAlert.showAndWait();
             if (result.isPresent() && result.get() == ButtonType.YES) {
-                // ذخیره سریع بازی و خروج
-                SaveManager.saveGameAsync(SAVE_FILE_PATH, engine);
+                try {
+                    SaveManager.saveGame(SAVE_FILE_PATH, engine);
+                } catch (Exception e) {
+                    System.err.println("Failed to save game: " + e.getMessage());
+                }
             } else if (result.isPresent() && result.get() == ButtonType.CANCEL) {
-                event.consume(); // لغو فرآیند خروج و ماندن در بازی
+                event.consume();
             }
         });
 
         primaryStage.show();
     }
 
-    // 🆕 جریان ساخت بازی جدید
     private void startNewGameFlow() {
         int playerCount = askPlayerCount();
         if (playerCount < 2 || playerCount > 4) {
@@ -99,11 +102,10 @@ public class MainApp extends Application {
         if (result.isPresent()) {
             try {
                 mapSize = Integer.parseInt(result.get());
-                // 🔒 اعمال قفل سخت‌گیرانه بین ۲ تا ۱۰
                 if (mapSize > 10) {
                     mapSize = 10;
                     Platform.runLater(() -> {
-                        Alert capAlert = new Alert(Alert.AlertType.WARNING, "Map size capped at 10x10 for optimal gameplay and screen fitting! 🖥️");
+                        Alert capAlert = new Alert(Alert.AlertType.WARNING, "Map size capped at 10x10 for optimal gameplay and screen fitting!");
                         capAlert.show();
                     });
                 } else if (mapSize < 2) {
@@ -123,20 +125,15 @@ public class MainApp extends Application {
         startupDelay.play();
     }
 
-
-    // 📂 جریان بارگذاری بازی ذخیره شده از هارد
     private void loadSavedGame(Stage stage) {
-        SaveManager.loadGameAsync(SAVE_FILE_PATH, new SaveManager.LoadGameCallback() {
+        SaveManager.loadGame(SAVE_FILE_PATH, new SaveManager.LoadGameCallback() {
             @Override
             public void onSuccess(GameEngine loadedEngine) {
-                // ⚠️ بسیار حیاتی: کدهای UI حتما باید در ترد اصلی جاوا اف‌ایکس اجرا شوند
                 Platform.runLater(() -> {
                     engine = loadedEngine;
                     gameMap = loadedEngine.getGameMap();
-                    // فرض بر این است که متد getMarket را در لایه گیم انجین دارید
                     market = loadedEngine.getMarket();
 
-                    // بازسازی کامل المان‌های گرافیکی بر اساس دیتای لود شده
                     buildUIComponents();
 
                     Alert successAlert = new Alert(Alert.AlertType.INFORMATION, "Game loaded successfully!");
@@ -144,7 +141,6 @@ public class MainApp extends Application {
                     successAlert.setHeaderText(null);
                     successAlert.show();
 
-                    // فعال کردن مجدد موتور بررسی نوبت بات‌ها در صورت نیاز
                     checkAndRunBotTurn();
                 });
             }
@@ -157,14 +153,12 @@ public class MainApp extends Application {
                     errorAlert.setHeaderText("Could not load save file");
                     errorAlert.showAndWait();
 
-                    // اگر لود شکست خورد، سیستم به طور خودکار بازی جدید می‌سازد
                     startNewGameFlow();
                 });
             }
         });
     }
 
-    // 🏗️ متد کمکی برای ساخت و چینش کامپوننت‌های UI (جلوگیری از تکرار کد)
     private void buildUIComponents() {
         boardCanvas = new BoardCanvas(gameMap, this);
         playerInfoPane = new PlayerInfoPane(engine, this);
@@ -181,19 +175,145 @@ public class MainApp extends Application {
         updateUI();
     }
 
-    // 💾 متد عمومی برای ذخیره دستی بازی (قابل فراخوانی از دکمه‌های ActionPane)
     public void triggerManualSave() {
-        SaveManager.saveGameAsync(SAVE_FILE_PATH, engine);
+        try {
+            SaveManager.saveGame(SAVE_FILE_PATH, engine);
+        } catch (Exception e) {
+            System.err.println("Failed to save game: " + e.getMessage());
+        }
         Alert alert = new Alert(Alert.AlertType.INFORMATION, "Your current game state has been saved in background!");
         alert.setTitle("Game Saved");
         alert.setHeaderText(null);
         alert.show();
     }
 
-    // 📂 متد عمومی برای لود دستی بازی وسط جریان مسابقه
     public void triggerManualLoad() {
         Stage currentStage = (Stage) root.getScene().getWindow();
         loadSavedGame(currentStage);
+    }
+
+    private MenuBar createMenuBar() {
+        MenuBar menuBar = new MenuBar();
+
+        Menu fileMenu = new Menu("File");
+
+        MenuItem saveItem = new MenuItem("Save Game");
+        saveItem.setOnAction(e -> saveGame());
+
+        MenuItem loadItem = new MenuItem("Load Game");
+        loadItem.setOnAction(e -> loadGame());
+
+        MenuItem newGameItem = new MenuItem("New Game");
+        newGameItem.setOnAction(e -> startNewGame());
+
+        fileMenu.getItems().addAll(saveItem, loadItem, new SeparatorMenuItem(), newGameItem);
+        menuBar.getMenus().add(fileMenu);
+
+        return menuBar;
+    }
+
+    private void saveGame() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Save Game");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Catan Save Files", "*.catan"));
+        fileChooser.setInitialFileName("save.catan");
+        File file = fileChooser.showSaveDialog(primaryStage);
+        if (file != null) {
+            try {
+                SaveManager.saveGame(file.getAbsolutePath(), engine);
+                Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                alert.setTitle("Game Saved");
+                alert.setHeaderText(null);
+                alert.setContentText("Game saved successfully!");
+                alert.showAndWait();
+            } catch (Exception e) {
+                Alert alert = new Alert(Alert.AlertType.ERROR);
+                alert.setTitle("Save Failed");
+                alert.setHeaderText(null);
+                alert.setContentText("Failed to save game: " + e.getMessage());
+                alert.showAndWait();
+            }
+        }
+    }
+
+    private void loadGame() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Load Game");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Catan Save Files", "*.catan"));
+        File file = fileChooser.showOpenDialog(primaryStage);
+        if (file != null) {
+            SaveManager.loadGame(file.getAbsolutePath(), new SaveManager.LoadGameCallback() {
+                @Override
+                public void onSuccess(GameEngine loadedEngine) {
+                    loadGameState(loadedEngine);
+                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                    alert.setTitle("Game Loaded");
+                    alert.setHeaderText(null);
+                    alert.setContentText("Game loaded successfully! It is " + engine.getCurrentPlayer().getName() + "'s turn.");
+                    alert.showAndWait();
+                }
+
+                @Override
+                public void onFailure(String errorMessage) {
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    alert.setTitle("Load Failed");
+                    alert.setHeaderText(null);
+                    alert.setContentText(errorMessage);
+                    alert.showAndWait();
+                }
+            });
+        }
+    }
+
+    private void loadGameState(GameEngine loadedEngine) {
+        this.engine = loadedEngine;
+        this.gameMap = loadedEngine.getGameMap();
+        this.market = getMarketFromEngine(loadedEngine);
+
+        buildGameUI();
+        updateUI();
+
+        PauseTransition delay = new PauseTransition(Duration.seconds(0.3));
+        delay.setOnFinished(e -> checkAndRunBotTurn());
+        delay.play();
+    }
+
+    private Market getMarketFromEngine(GameEngine engine) {
+        return engine.getMarket();
+    }
+
+    private void buildGameUI() {
+        boardCanvas = new BoardCanvas(gameMap, this);
+        playerInfoPane = new PlayerInfoPane(engine, this);
+        marketPane = new MarketPane(market, engine, this);
+        actionPane = new ActionPane(engine, gameMap, this);
+        dicePane = new DicePane(engine, this);
+
+        MenuBar menuBar = createMenuBar();
+        VBox topBar = new VBox(menuBar, dicePane);
+
+        root.setTop(topBar);
+        root.setCenter(boardCanvas);
+        root.setRight(playerInfoPane);
+        root.setBottom(marketPane);
+        root.setLeft(actionPane);
+    }
+
+    private void startNewGame() {
+        int playerCount = askPlayerCount();
+        if (playerCount < 2 || playerCount > 4) {
+            playerCount = 2;
+        }
+
+        boolean[] isBotArray = askPlayerTypes(playerCount);
+        initializeGame(playerCount, isBotArray);
+
+        buildGameUI();
+        updateUI();
+
+        PauseTransition startupDelay = new PauseTransition(Duration.seconds(0.3));
+        startupDelay.setOnFinished(e -> checkAndRunBotTurn());
+        startupDelay.play();
     }
 
     private int askPlayerCount() {
@@ -224,7 +344,6 @@ public class MainApp extends Application {
     }
 
     private void initializeGame(int playerCount, boolean[] isBotArray, int mapSize) {
-        // 🎯 ساخت مپ با ابعاد کاملاً داینامیک و سفارشی ورودی
         gameMap = new Map(mapSize, mapSize);
         market = new Market();
 
@@ -241,16 +360,19 @@ public class MainApp extends Application {
 
         engine = new GameEngine(players, market, gameMap);
     }
+
+    private void initializeGame(int playerCount, boolean[] isBotArray) {
+        initializeGame(playerCount, isBotArray, 5);
+    }
+
     public void handleDiscardFlow(java.util.Map<Player, Integer> discardMap, Runnable onDone) {
-        // 🎯 اصلاح باگ: اگر کسی نیاز به سوزاندن کارت نداشت، بازی نباید مستقیم ادامه پیدا کند؛ بلکه باید ابتدا بازرس حرکت داده شود.
         if (discardMap == null || discardMap.isEmpty()) {
-            handleAuditorMovement(onDone); // هدایت مستقیم به فاز جابه‌جایی بازرس
+            handleAuditorMovement(onDone);
             return;
         }
 
         List<Player> affectedPlayers = new ArrayList<>(discardMap.keySet());
         processNextDiscard(discardMap, affectedPlayers, 0, () -> {
-            // پس از اینکه همه‌ی بازیکنانِ واجد شرایط کارت‌هایشان را سوزاندند، بازرس حرکت کند
             handleAuditorMovement(onDone);
         });
     }
@@ -275,6 +397,7 @@ public class MainApp extends Application {
             actionPane.updateStatus(current.getName() + ",\nclick a sector to\nmove the Auditor");
             updateUI();
             boardCanvas.enterMoveAuditorMode();
+
             waitForAuditorMove(onDone);
         }
     }
@@ -298,7 +421,6 @@ public class MainApp extends Application {
         java.util.List<int[]> validTargets = new java.util.ArrayList<>();
 
         boolean anyHasStructures = false;
-        // 🔄 پیمایش داینامیک سطرها و ستون‌های سکتورها به جای عدد ثابت 5
         for (int r = 0; r < sectorRows; r++) {
             for (int c = 0; c < sectorCols; c++) {
                 model.Sector s = sectors[r][c];
@@ -394,7 +516,11 @@ public class MainApp extends Application {
         Player current = engine.getCurrentPlayer();
 
         if (!(current instanceof SimpleBot)) {
-            actionPane.initTurnLogStart(engine.getGameLog().size());
+            // 🎯 قفل کردن نقطه شروع لاگ راند برای پلier انسان
+            this.humanStartLogSize = engine.getGameLog().size();
+            actionPane.initTurnLogStart(this.humanStartLogSize);
+
+            displayTurnSummary(humanStartLogSize, current.getName(), "HUMAN");
             return;
         }
 
@@ -413,6 +539,13 @@ public class MainApp extends Application {
         });
         delay.play();
     }
+
+    public void reviewHumanTurnLog() {
+        Player current = engine.getCurrentPlayer();
+        displayTurnSummary(this.humanStartLogSize, current.getName(), "HUMAN");
+    }
+
+
 
     private void runBotSetupTurn() {
         Player current = engine.getCurrentPlayer();
@@ -449,75 +582,115 @@ public class MainApp extends Application {
         // 🚩 ثبت نقطه شروع لاگ‌ها برای محاسبه پکیج خلاصه این نوبت ربات
         int startLogSize = engine.getGameLog().size();
 
-        // 🎲 گام اول: مکث کوتاه برای پرتاب تاس ربات
-        PauseTransition rollDelay = new PauseTransition(Duration.seconds(1.2));
-        rollDelay.setOnFinished(e -> {
-            try {
-                Dice dice = new Dice();
-                int total = engine.rollDice(dice);
-                dicePane.showDiceResult(dice.getLastDie1(), dice.getLastDie2());
+        // 🎯 تعریف مشترک منطق ساخت و ساز ربات پس از محاسبات تاس
+        Runnable botPostRollLogic = () -> {
+            // گام دوم: مکث برای ساخت و ساز هوش مصنوعی
+            PauseTransition buildDelay = new PauseTransition(Duration.seconds(1.8));
+            buildDelay.setOnFinished(e2 -> {
+                try {
+                    // 🎰 اجرای هوش مصنوعی (این متد در بک‌اند نوبت را به بازیکن بعدی می‌دهد)
+                    engine.playBotTurn(new Dice());
+                    engine.updateLongestNetworkAward();
 
-                dicePane.updateLiveTicker("🎲 🤖 " + bot.getName() + " rolled a total of " + total + "!", "BOT");
+                    // 🎯 تولید و نمایش پکیج کامل خلاصه عملکرد ربات در بالای صفحه
+                    displayTurnSummary(startLogSize, bot.getName(), "BUILD");
+                    updateUI();
 
-                java.util.Map<Player, Integer> discardMap = engine.distributeResources(total);
-                engine.updateLongestNetworkAward();
-                updateUI();
+                    // 🚨 گام سوم: فعال کردن دکمه تایید نوبت ربات برای بازیکن انسان
+                    Platform.runLater(() -> {
+                        actionPane.getEndTurnBtn().setText("Next Turn ➡️");
+                        actionPane.getEndTurnBtn().setDisable(false);
+                        actionPane.getEndTurnBtn().setVisible(true);
+                        actionPane.getEndTurnBtn().setManaged(true);
+                        actionPane.getEndTurnBtn().setStyle("-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-weight: bold;"); // آبی کارآگاهی
 
-                // منطق پس از تاس ربات
-                Runnable botPostRollLogic = () -> {
-                    // گام دوم: مکث برای ساخت و ساز هوش مصنوعی
-                    PauseTransition buildDelay = new PauseTransition(Duration.seconds(1.8));
-                    buildDelay.setOnFinished(e2 -> {
-                        // 🎰 اجرای هوش مصنوعی (این متد در بک‌اند نوبت را به بازیکن بعدی می‌دهد)
-                        engine.playBotTurn(new Dice());
-                        engine.updateLongestNetworkAward();
+                        actionPane.getEndTurnBtn().setOnAction(evt -> {
+                            actionPane.getEndTurnBtn().setText("End Turn");
+                            actionPane.getEndTurnBtn().setStyle(null);
+                            actionPane.getEndTurnBtn().setOnAction(click -> actionPane.endTurn());
 
-                        // 🎯 گام طلایی: تولید و نمایش پکیج کامل خلاصه عملکرد ربات در بالای صفحه
-                        displayTurnSummary(startLogSize, bot.getName(), "BUILD");
-                        updateUI();
-
-                        // 🚨 گام سوم: فعال کردن دکمه تایید نوبت ربات برای بازیکن انسان
-                        Platform.runLater(() -> {
-                            actionPane.getEndTurnBtn().setText("Next Turn ➡️");
-                            actionPane.getEndTurnBtn().setDisable(false);
-                            actionPane.getEndTurnBtn().setVisible(true);
-                            actionPane.getEndTurnBtn().setManaged(true);
-                            actionPane.getEndTurnBtn().setStyle("-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-weight: bold;"); // آبی کارآگاهی
-
-                            // تغییر موقت عملکرد دکمه برای عبور از نوبت ربات
-                            actionPane.getEndTurnBtn().setOnAction(evt -> {
-                                // بازگرداندن دکمه به حالت عادی انسان
-                                actionPane.getEndTurnBtn().setText("End Turn");
-                                actionPane.getEndTurnBtn().setStyle(null);
-                                // بازگرداندن هندلر دکمه به متد اصلی خود کلاس ActionPane
-                                actionPane.getEndTurnBtn().setOnAction(click -> actionPane.endTurn());
-
-                                if (engine.getCurrentPhase() == GamePhase.FINISHED) {
-                                    showVictoryScreen();
-                                } else {
-                                    updateUI();
-                                    checkAndRunBotTurn(); // هدایت به دور بعدی
-                                }
-                            });
+                            if (engine.getCurrentPhase() == GamePhase.FINISHED) {
+                                showVictoryScreen();
+                            } else {
+                                updateUI();
+                                checkAndRunBotTurn(); // هدایت به دور بعدی
+                            }
                         });
                     });
-                    buildDelay.play();
-                };
-
-                if (total == 7) {
-                    dicePane.updateLiveTicker("🚨 Tax Auditor Alert! Checking resource cards...", "PENALTY");
-                    handleDiscardFlow(discardMap, botPostRollLogic);
-                } else {
-                    botPostRollLogic.run();
+                } catch (Exception buildEx) {
+                    System.err.println("🚨 Bot Build Logic Error: " + buildEx.getMessage());
+                    buildEx.printStackTrace();
+                    activateFailSafeButton("Bot Build Error! Skip Bot ➡️");
                 }
+            });
+            buildDelay.play();
+        };
 
-            } catch (Exception ex) {
-                actionPane.updateStatus("Bot error: " + ex.getMessage());
-                updateUI();
-            }
-        });
-        rollDelay.play();
+        // 🚨 گام طلایی ضد کرش: اگر ربات قبلاً تاس ریخته (مثلاً در وضعیت لود بازی)، فاز تاس را رد کن
+        if (engine.hasRolledThisTurn()) {
+            actionPane.updateStatus(bot.getName() + " (BOT)\nalready rolled. Upgrading...");
+            // اجرای مستقیم منطق پس از تاس بدون ریختن مجدد آن
+            botPostRollLogic.run();
+        } else {
+            // 🎲 روال عادی بازی: پرتاب تاس با مکث کوتاه
+            PauseTransition rollDelay = new PauseTransition(Duration.seconds(1.2));
+            rollDelay.setOnFinished(e -> {
+                try {
+                    Dice dice = new Dice();
+                    int total = engine.rollDice(dice);
+
+                    try {
+                        dicePane.showDiceResult(dice.getLastDie1(), dice.getLastDie2());
+                    } catch (Exception uiEx) {
+                        System.err.println("🚨 UI Dice Display Error (Baran's code): " + uiEx.getMessage());
+                    }
+
+                    dicePane.updateLiveTicker("🎲 🤖 " + bot.getName() + " rolled a total of " + total + "!", "BOT");
+
+                    java.util.Map<Player, Integer> discardMap = engine.distributeResources(total);
+                    engine.updateLongestNetworkAward();
+                    updateUI();
+
+                    if (total == 7) {
+                        dicePane.updateLiveTicker("🚨 Tax Auditor Alert! Checking resource cards...", "PENALTY");
+                        handleDiscardFlow(discardMap, botPostRollLogic);
+                    } else {
+                        botPostRollLogic.run();
+                    }
+
+                } catch (Exception ex) {
+                    System.err.println("🚨 CRITICAL BOT ERROR IN TURN RUNNER:");
+                    ex.printStackTrace();
+                    activateFailSafeButton("Bot Crashed! Skip Bot ➡️");
+                }
+            });
+            rollDelay.play();
+        }
     }
+
+    // 🛡️ شاسی اعلام حریق اختصاصی برای جلوگیری از قفل شدن بازی
+    private void activateFailSafeButton(String message) {
+        Platform.runLater(() -> {
+            actionPane.updateStatus(message);
+            actionPane.getEndTurnBtn().setText(message);
+            actionPane.getEndTurnBtn().setDisable(false);
+            actionPane.getEndTurnBtn().setVisible(true);
+            actionPane.getEndTurnBtn().setManaged(true);
+            actionPane.getEndTurnBtn().setStyle("-fx-background-color: #d32f2f; -fx-text-fill: white; -fx-font-weight: bold;"); // قرمز اضطراری
+
+            actionPane.getEndTurnBtn().setOnAction(evt -> {
+                actionPane.getEndTurnBtn().setText("End Turn");
+                actionPane.getEndTurnBtn().setStyle(null);
+                actionPane.getEndTurnBtn().setOnAction(click -> actionPane.endTurn());
+
+                // اجبار موتور بازی به رد کردن نوبت بات به صورت مسالمت‌آمیز
+                engine.nextTurn();
+                updateUI();
+                checkAndRunBotTurn();
+            });
+        });
+    }
+
     private void showVictoryScreen() {
         Player winner = null;
         for (Player p : engine.getPlayers()) {
@@ -542,6 +715,10 @@ public class MainApp extends Application {
         if (marketPane != null) marketPane.update();
         if (actionPane != null) actionPane.update();
         if (dicePane != null) dicePane.update();
+
+        if (engine != null && !(engine.getCurrentPlayer() instanceof SimpleBot)) {
+            displayTurnSummary(this.humanStartLogSize, engine.getCurrentPlayer().getName(), "HUMAN");
+        }
     }
 
     public GameEngine getEngine() { return engine; }
@@ -555,62 +732,97 @@ public class MainApp extends Application {
         List<String> logs = engine.getGameLog();
         int currentSize = logs.size();
 
-        if (currentSize <= startLogSize) {
-            dicePane.updateLiveTicker("📋 " + entityName + ": No moves this turn.", type);
-            return;
+        // 📊 متغیرهای داشبورد ثابت
+        String diceVal = "-";
+        int mvpCount = 0;
+        int roadCount = 0;
+        int unicornCount = 0;
+        int tradeCount = 0;
+        String auditorLoc = "-";
+        int taxLost = 0;
+        List<String> compactYields = new ArrayList<>();
+
+        // 🔍 اگر حرکتی ثبت شده بود، مقادیر را استخراج می‌کنیم
+        if (currentSize > startLogSize) {
+            java.util.Map<String, Integer> resourcesMap = new java.util.HashMap<>();
+
+            for (int i = startLogSize; i < currentSize; i++) {
+                String logLine = logs.get(i);
+
+                if (logLine.contains("rolled a")) {
+                    diceVal = logLine.replaceAll(".*rolled a (\\d+).*", "$1");
+                }
+                else if (logLine.contains("built an MVP") || logLine.contains("built an MVP on Vertex")) {
+                    mvpCount++;
+                }
+                else if (logLine.contains("established a Partnership") || logLine.contains("established a Partnership!")) {
+                    roadCount++;
+                }
+                else if (logLine.contains("upgraded an MVP")) {
+                    unicornCount++;
+                }
+                else if (logLine.contains("AUDITOR: Moved") || logLine.contains("Moved to sector")) {
+                    auditorLoc = logLine.replaceAll(".*sector \\((\\d+,\\d+)\\).*", "[$1]");
+                    if (auditorLoc.equals(logLine)) {
+                        auditorLoc = logLine.replaceAll(".*Sector \\[(\\d+,\\d+)\\].*", "[$1]");
+                    }
+                }
+                else if (logLine.contains("earned") || logLine.contains("YIELD")) {
+                    if (logLine.contains(entityName)) {
+                        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d+)\\s+([a-zA-Z]+)").matcher(logLine);
+                        if (m.find()) {
+                            int amt = Integer.parseInt(m.group(1));
+                            String res = m.group(2).toUpperCase();
+                            // خلاصه کردن نام ریسورس‌ها برای جاگیری بهتر در داشبورد
+                            if(res.equals("CAPITAL")) res = "CAP";
+                            if(res.equals("TALENT")) res = "TLN";
+                            if(res.equals("PATENT")) res = "PTN";
+                            if(res.equals("CLOUD")) res = "CLD";
+                            if(res.equals("DATA")) res = "DAT";
+
+                            resourcesMap.put(res, resourcesMap.getOrDefault(res, 0) + amt);
+                        }
+                    }
+                }
+                else if (logLine.contains("lost") || logLine.contains("TAXED")) {
+                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:discarded|discard|must discard)\\s+(\\d+)").matcher(logLine);
+                    if (m.find()) {
+                        taxLost += Integer.parseInt(m.group(1));
+                    }
+                }
+
+                if (logLine.contains("TRADE") || logLine.contains("TRANSACTION") || logLine.toLowerCase().contains("market")) {
+                    tradeCount++;
+                }
+            }
+
+            // فرمت کردن ریسورس‌های دریافتی به شکل تلگرافی (مثلاً: +1DAT)
+            for (java.util.Map.Entry<String, Integer> entry : resourcesMap.entrySet()) {
+                compactYields.add("+" + entry.getValue() + entry.getKey());
+            }
         }
 
-        StringBuilder summary = new StringBuilder("📋 " + entityName + ": ");
-        List<String> compactEvents = new ArrayList<>();
+        String yieldStr = compactYields.isEmpty() ? "-" : String.join(",", compactYields);
 
-        for (int i = startLogSize; i < currentSize; i++) {
-            String logLine = logs.get(i);
+        // 🏗️ خلق داشبورد ۲ خطی با فضاها و جایگاه‌های کاملاً ثابت مچ‌شده با طرح شما
+        StringBuilder dashboard = new StringBuilder();
+        dashboard.append(String.format("👑 %s | ", entityName));
+        dashboard.append(String.format("🎲 Dice: %-3s  |  ", diceVal));
+        dashboard.append(String.format("🏗️ MVP: %-2d  |  ", mvpCount));
+        dashboard.append(String.format("🛣️ Road: %-2d  |  ", roadCount));
+        dashboard.append(String.format("🦄 Unicorn: %-2d\n", unicornCount));
 
-            // 🔍 مترجم هوشمند جملات به کلمات کلیدی تلگرافی (اسم + فعل / آیتم)
-            if (logLine.contains("rolled a")) {
-                String num = logLine.replaceAll(".*rolled a (\\d+).*", "$1");
-                compactEvents.add("🎲 Dice: " + num);
-            }
-            else if (logLine.contains("built an MVP") || logLine.contains("successfully deployed a new MVP")) {
-                compactEvents.add("🏗️ MVP: Built");
-            }
-            else if (logLine.contains("established a Partnership") || logLine.contains("Road Secured")) {
-                compactEvents.add(" Establish");
-            }
-            else if (logLine.contains("upgraded an MVP") || logLine.contains("Valuation Spike")) {
-                compactEvents.add("🦄 Unicorn: Upgraded");
-            }
-            else if (logLine.contains("moved the Regulatory Inspector") || logLine.contains("AUDITOR: Moved")) {
-                String coords = logLine.replaceAll(".*sector \\((\\d+,\\d+)\\).*", "[$1]");
-                if (coords.length() > 10) coords = logLine.replaceAll(".*Sector \\[(\\d+,\\d+)\\].*", "[$1]");
-                compactEvents.add("🕵️‍♂️ Auditor: Moved " + coords);
-            }
-            else if (logLine.contains("earned") || logLine.contains("YIELD")) {
-                // استخراج مقدار و نوع ریسورس مثلا: 1 DATA
-                String resourceDetails = logLine.replaceAll(".*received (\\d+ \\w+).*", "+$1");
-                if(resourceDetails.equals(logLine)) {
-                    resourceDetails = logLine.replaceAll(".*earned (\\d+ \\w+).*", "+$1");
-                }
-                compactEvents.add("📦 Res: " + resourceDetails);
-            }
-            else if (logLine.contains("lost") || logLine.contains("TAXED")) {
-                String taxAmount = logLine.replaceAll(".*discarded (\\d+).*", "-$1 Cards");
-                if(taxAmount.equals(logLine)) {
-                    taxAmount = logLine.replaceAll(".*must discard (\\d+).*", "-$1 Cards");
-                }
-                compactEvents.add("🚨 Tax Penalty: " + taxAmount);
-            }
-            else if (logLine.contains("TRADE") || logLine.contains("TRANSACTION")) {
-                compactEvents.add("🔄 Peer Trade: Executed");
-            }
-        }
+        dashboard.append(String.format("📊 STATUS   | "));
+        dashboard.append(String.format("🔄 Trade: %-3s  |  ", (tradeCount > 0 ? tradeCount + "Tx" : "-")));
+        dashboard.append(String.format("📦 Yield: %-12s  |  ", yieldStr));
+        dashboard.append(String.format("🕵️‍♂️ Auditor: %-7s  |  ", auditorLoc));
+        dashboard.append(String.format("🚨 Tax: %s", (taxLost > 0 ? "-" + taxLost + "C" : "-")));
 
-        // ⚡ ترکیب جذاب و خطی کلمات با تفکیک‌کننده‌ی لوله (Pipe Symbol)
-        summary.append(String.join("  |  ", compactEvents));
-
-        // ارسال نهایی به تیکر بزرگ شده‌ی بالا
-        dicePane.updateLiveTicker(summary.toString().trim(), type);
+        // فرستادن مستقیم خروجی مهندسی شده به نوار سبز بالای صفحه
+        dicePane.updateLiveTicker(dashboard.toString(), type);
     }
+
+
     public static void main(String[] args) {
         launch(args);
     }

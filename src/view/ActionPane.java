@@ -144,7 +144,7 @@ public class ActionPane extends VBox {
         boolean isBot = current instanceof SimpleBot;
 
         if (phase == GamePhase.SETUP) {
-            phaseLabel.setText("SETUP PHASE");
+            phaseLabel.setText("SETUP PHASE - Place starting MVP & Partnership");
             phaseLabel.setTextFill(Color.ORANGE);
         } else if (phase == GamePhase.NORMAL) {
             phaseLabel.setText("NORMAL PHASE");
@@ -205,7 +205,9 @@ public class ActionPane extends VBox {
 
     private void rollDice() {
         try {
-            humanStartLogSize = engine.getGameLog().size();
+            // ❌ خط حذف شده: humanStartLogSize = engine.getGameLog().size();
+            // 💡 دلیل حذف: این خط باعث می‌شد تراکنش‌های مالی که قبل از تاس ریختن با مارکت انجام دادی از لاگ حذف شوند!
+            // مقدار اصلی در متد initTurnLogStart به درستی در ابتدای نوبت قفل شده است.
 
             Dice dice = new Dice();
             int total = engine.rollDice(dice);
@@ -215,6 +217,8 @@ public class ActionPane extends VBox {
 
             java.util.Map<Player, Integer> discardMap = engine.distributeResources(total);
             engine.updateLongestNetworkAward();
+
+            // 🎯 آپدیت سراسری لایه گرافیکی (که حالا خلاصه‌ساز زنده شما را هم بروز می‌کند)
             app.updateUI();
 
             if (total == 7) {
@@ -254,17 +258,17 @@ public class ActionPane extends VBox {
 
     public void endTurn() {
         if (!isReviewingSummary) {
-            // 🏁 مرحله اول: قفل کردن ابزارها و نمایش خلاصه‌ی عملکرد خودت
+            // 🏁 مرحله اول: لغو فاز ساخت و نمایش پکیج نهایی خلاصه عملکرد چندخطی شما
             app.getBoardCanvas().cancelBuildMode();
 
-            // فراخوانی متد خلاصه‌ساز برای کارهایی که خودت در این دور کردی
+            // فراخوانی متد خلاصه‌ساز برای نمایش نهایی کارهای این دور شما
             app.displayTurnSummary(humanStartLogSize, engine.getCurrentPlayer().getName(), "BUILD");
 
-            // تغییر فیس دکمه برای تایید نهایی دور
-            endTurnBtn.setText("Review Round Log 📋");
+            // 🎨 تغییر متن دکمه به وضعیت تایید برای واضح شدن فرآیند دو مرحله‌ای
+            endTurnBtn.setText("Confirm End ➡️");
             endTurnBtn.setStyle("-fx-background-color: #FF9800; -fx-text-fill: white; -fx-font-weight: bold;"); // نارنجی استارتاپی
 
-            // غیرفعال کردن بقیه دکمه‌ها تا بازیکن وسط فاز خلاصه کاری نکند
+            // قفل کردن موقت دکمه‌های اکشن جهت جلوگیری از حرکت ناخواسته
             rollDiceBtn.setDisable(true);
             buildMVPBtn.setDisable(true);
             upgradeUnicornBtn.setDisable(true);
@@ -272,7 +276,7 @@ public class ActionPane extends VBox {
 
             isReviewingSummary = true;
         } else {
-            // 🏁 مرحله دوم: کلیک دوباره روی دکمه نارنجی -> انتقال قطعی نوبت به بعدی
+            // 🏁 مرحله دوم: کلیک دوباره روی دکمه نارنجی -> انتقال قطعی نوبت به بازیکن بعدی
             isReviewingSummary = false;
 
             // ریست کردن ظاهر دکمه به حالت اولیه
@@ -283,7 +287,7 @@ public class ActionPane extends VBox {
             engine.nextTurn();
             app.updateUI();
 
-            // هول دادن بازی به سمت بررسی نوبت بعدی
+            // هدایت خودکار موتور بازی به سمت بررسی نوبت بعدی (انسان یا ربات)
             app.checkAndRunBotTurn();
         }
     }

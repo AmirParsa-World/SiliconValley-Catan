@@ -68,6 +68,10 @@ public class GameEngine implements Serializable {
         return this.gameMap;
     }
 
+    public Market getMarket() {
+        return this.market;
+    }
+
     public List<Player> getPlayers() {
         return this.players;
     }
@@ -474,33 +478,27 @@ public class GameEngine implements Serializable {
     // 🤖 اجرای خودکار فاز راه‌اندازی (Setup) برای ربات (استفاده از مپ داخلی)
     public void playBotSetupTurn() {
         Player activePlayer = getCurrentPlayer();
-        if (!(activePlayer instanceof SimpleBot)) {
-            return;
-        }
+        if (!(activePlayer instanceof SimpleBot)) return;
 
         SimpleBot bot = (SimpleBot) activePlayer;
         log("🤖 Bot " + bot.getName() + " is placing its starting MVP & Partnership automatically...");
 
-        // ۱. پیدا کردن اولین راس قانونی روی مپ
-
         Vertex targetVertex = findRandomValidVertexForSetup();
 
         if (targetVertex != null) {
-            // ۲. پیدا کردن اولین یال خالی متصل به این راس
-            Edge targetEdge = null;
+            // 🎯 جمع‌آوری تمام یال‌های خالی و قانونی همسایه در یک لیست
+            List<Edge> availableEdges = new ArrayList<>();
             for (Edge edge : targetVertex.getNeighboringEdges()) {
                 if (edge != null && edge.getOwner() == null) {
-                    targetEdge = edge;
-                    break;
+                    availableEdges.add(edge);
                 }
             }
 
-            if (targetEdge != null) {
+            // 🎲 انتخاب کاملاً تصادفی یک یال از بین گزینه‌های موجود برای طبیعی شدن حرکت
+            if (!availableEdges.isEmpty()) {
+                Edge targetEdge = availableEdges.get(new java.util.Random().nextInt(availableEdges.size()));
                 try {
-                    // ۳. ساخت سازه اولیه در فاز ست‌آپ
                     setupPlaceMVPAndPartnership(bot, targetVertex, targetEdge);
-
-                    // ۴. پاس دادن نوبت
                     nextTurn();
                 } catch (Exception e) {
                     log("⚠️ Bot setup failed: " + e.getMessage());
@@ -516,21 +514,49 @@ public class GameEngine implements Serializable {
     // 🤖 Bot build phase only (dice rolling and turn advancement handled by UI)
     public void playBotTurn(Dice dice) {
         Player activePlayer = getCurrentPlayer();
-        if (!(activePlayer instanceof SimpleBot)) {
-            return;
-        }
+        if (!(activePlayer instanceof SimpleBot)) return;
 
         SimpleBot bot = (SimpleBot) activePlayer;
-        log("🤖 Bot " + bot.getName() + " is deciding on builds...");
+        log("🤖 Bot " + bot.getName() + " is analyzing financial assets and market rates...");
 
+        // 🧠 ۱. الگوریتم هوش تجاری ربات با مارکت باران
+        ResourceType[] requiredForMvp = {ResourceType.CAPITAL, ResourceType.TALENT, ResourceType.CLOUD, ResourceType.DATA};
+
+        for (ResourceType needed : requiredForMvp) {
+            // اگر ربات این منبع را برای ساخت MVP کم دارد
+            if (bot.getResource(needed) < 1) {
+                // پیدا کردن یک منبع مازاد (مثلاً منبعی که ربات از آن ۳ تا یا بیشتر دارد) برای فروش
+                for (ResourceType surplus : ResourceType.values()) {
+                    if (surplus != needed && bot.getResource(surplus) >= 3) {
+                        int sellPrice = market.getSellPrice(surplus);
+
+                        // فروش منبع مازاد به مارکت برای کسب سود
+                        bot.spendResource(surplus, 1);
+                        bot.addResource(ResourceType.CAPITAL, sellPrice);
+                        log("🔄 Market Trade: Bot " + bot.getName() + " sold 1 " + surplus + " for " + sellPrice + " Capital.");
+
+                        // اگر منبعِ مورد نیاز، خودِ Capital نبود، حالا با ثروتی که دارد آن را می‌خرد
+                        if (needed != ResourceType.CAPITAL) {
+                            int buyPrice = market.getBuyPrice(needed);
+                            if (bot.getResource(ResourceType.CAPITAL) >= buyPrice) {
+                                bot.spendResource(ResourceType.CAPITAL, buyPrice);
+                                bot.addResource(needed, 1);
+                                log("🔄 Market Trade: Bot " + bot.getName() + " spent " + buyPrice + " Capital to buy 1 " + needed + ".");
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 🏗️ ۲. فاز ساخت و ساز پس از تریدهای احتمالی مارکت
         boolean canAffordMVP = bot.getResource(ResourceType.CAPITAL) >= 1 &&
                 bot.getResource(ResourceType.TALENT) >= 1 &&
                 bot.getResource(ResourceType.CLOUD) >= 1 &&
                 bot.getResource(ResourceType.DATA) >= 1;
 
-        // داخل متد playBotTurn خط زیر را تغییر بده:
         if (canAffordMVP) {
-            // ۱. پیدا کردن راس قانونی متصل به جاده‌های خود ربات به صورت تصادفی
             Vertex targetVertex = findRandomValidVertexForNormal(bot);
             if (targetVertex != null) {
                 try {
@@ -541,11 +567,12 @@ public class GameEngine implements Serializable {
             } else {
                 log("🤖 Bot " + bot.getName() + " couldn't find a valid connected vertex to expand.");
             }
+        } else {
+            log("🤖 Bot " + bot.getName() + " decided to hold assets for the next round.");
         }
 
         nextTurn();
     }
-
     // 🔍 پیدا کردن اولین راس خالی و قانونی روی نقشه داخلی
 // 🔍 پیدا کردن یک رأس کاملاً تصادفی و قانونی برای فاز ست‌آپ اولیه
     private Vertex findRandomValidVertexForSetup() {
@@ -593,7 +620,5 @@ public class GameEngine implements Serializable {
         if (connectedVertices.isEmpty()) return null;
         return connectedVertices.get(new java.util.Random().nextInt(connectedVertices.size()));
     }
-    public Market getMarket() {
-        return this.market;
-    }
+
 }

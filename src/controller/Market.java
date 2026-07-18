@@ -106,4 +106,13 @@ public class Market implements Serializable {
         System.out.println("🏦 MARKET TRADE: " + player.getName() + " traded " + requiredRate + " " + offer + " for 1 " + receive);
     }
 
+    // 💰 قیمت فروش منبع به مارکت (برگرفته از قیمت جاری سیستم باران)
+    public int getSellPrice(ResourceType resource) {
+        return getPrice(resource);
+    }
+
+    // 🛒 قیمت خرید منبع از مارکت (برگرفته از قیمت جاری سیستم باران)
+    public int getBuyPrice(ResourceType resource) {
+        return getPrice(resource);
+    }
 }
