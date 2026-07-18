@@ -247,8 +247,7 @@ public class GameEngine implements Serializable {
                             int yield = (vertex.getStructure().getPoint() == 2) ? 2 : 1;
 
                             owner.addResource(resource, yield);
-                            log("💎 YIELD: Player " + owner.getName() + " received " + yield + " " + resource + " from sector (" + resource + " - " + rollValue + ")");
-                        }
+                            log("📦 " + owner.getName() + " earned " + yield + " " + resource + " from Sector " + rollValue);                        }
                     }
                 }
             }
@@ -483,7 +482,8 @@ public class GameEngine implements Serializable {
         log("🤖 Bot " + bot.getName() + " is placing its starting MVP & Partnership automatically...");
 
         // ۱. پیدا کردن اولین راس قانونی روی مپ
-        Vertex targetVertex = findFirstValidVertex();
+
+        Vertex targetVertex = findRandomValidVertexForSetup();
 
         if (targetVertex != null) {
             // ۲. پیدا کردن اولین یال خالی متصل به این راس
@@ -528,36 +528,71 @@ public class GameEngine implements Serializable {
                 bot.getResource(ResourceType.CLOUD) >= 1 &&
                 bot.getResource(ResourceType.DATA) >= 1;
 
+        // داخل متد playBotTurn خط زیر را تغییر بده:
         if (canAffordMVP) {
-            Vertex targetVertex = findFirstValidVertex();
+            // ۱. پیدا کردن راس قانونی متصل به جاده‌های خود ربات به صورت تصادفی
+            Vertex targetVertex = findRandomValidVertexForNormal(bot);
             if (targetVertex != null) {
                 try {
                     buildMVP(bot, targetVertex);
                 } catch (Exception e) {
                     log("⚠️ Bot failed to build MVP: " + e.getMessage());
                 }
+            } else {
+                log("🤖 Bot " + bot.getName() + " couldn't find a valid connected vertex to expand.");
             }
-        } else {
-            log("🤖 Bot " + bot.getName() + " does not have enough resources to build MVP.");
         }
 
         nextTurn();
     }
 
     // 🔍 پیدا کردن اولین راس خالی و قانونی روی نقشه داخلی
-    private Vertex findFirstValidVertex() {
+// 🔍 پیدا کردن یک رأس کاملاً تصادفی و قانونی برای فاز ست‌آپ اولیه
+    private Vertex findRandomValidVertexForSetup() {
+        List<Vertex> validVertices = new ArrayList<>();
         Vertex[][] vertices = this.gameMap.getVertices();
+
         for (int r = 0; r < vertices.length; r++) {
             for (int c = 0; c < vertices[r].length; c++) {
                 Vertex v = vertices[r][c];
                 if (v != null && isValidStructurePlacement(v)) {
-                    return v;
+                    validVertices.add(v);
                 }
             }
         }
-        return null;
+
+        if (validVertices.isEmpty()) return null;
+        // انتخاب تصادفی از بین تمام گزینه‌های قانونی نقشه
+        return validVertices.get(new java.util.Random().nextInt(validVertices.size()));
     }
 
+    // 🧠 پیدا کردن یک رأس تصادفی که حتماً به شبکه جاده‌های خودِ ربات متصل باشد (قانون فاز نرمال کاتان)
+    private Vertex findRandomValidVertexForNormal(Player bot) {
+        List<Vertex> connectedVertices = new ArrayList<>();
+        Vertex[][] vertices = this.gameMap.getVertices();
+
+        for (int r = 0; r < vertices.length; r++) {
+            for (int c = 0; c < vertices[r].length; c++) {
+                Vertex v = vertices[r][c];
+                if (v != null && isValidStructurePlacement(v)) {
+                    // بررسی اینکه آیا این گره به حداقل یکی از جاده‌های این ربات متصل است؟
+                    boolean isConnected = false;
+                    for (Edge edge : v.getNeighboringEdges()) {
+                        if (edge != null && bot.equals(edge.getOwner())) {
+                            isConnected = true;
+                            break;
+                        }
+                    }
+                    if (isConnected) {
+                        connectedVertices.add(v);
+                    }
+                }
+            }
+        }
+
+        if (connectedVertices.isEmpty()) return null;
+        return connectedVertices.get(new java.util.Random().nextInt(connectedVertices.size()));
+    }
     public Market getMarket() {
         return this.market;
     }
