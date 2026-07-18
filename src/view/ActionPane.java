@@ -4,7 +4,6 @@ import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.control.TextInputDialog;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
@@ -25,6 +24,8 @@ public class ActionPane extends VBox {
     private Button upgradeUnicornBtn;
     private Button buildPartnershipBtn;
     private Button endTurnBtn;
+    private Button saveGameBtn;
+    private Button loadGameBtn;
 
     public ActionPane(GameEngine engine, model.Map gameMap, MainApp app) {
         this.engine = engine;
@@ -65,7 +66,19 @@ public class ActionPane extends VBox {
         endTurnBtn = createButton("End Turn");
         endTurnBtn.setOnAction(e -> endTurn());
 
-        this.getChildren().addAll(title, phaseLabel, statusLabel, startSetupBtn, rollDiceBtn, buildMVPBtn, upgradeUnicornBtn, buildPartnershipBtn, endTurnBtn);
+        // 💾 تمیزکاری و ساخت دکمه‌های سیو و لود (بدون تکرار کد)
+        saveGameBtn = createButton("Save Game 💾");
+        saveGameBtn.setOnAction(e -> app.triggerManualSave());
+        saveGameBtn.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white;");
+
+        loadGameBtn = createButton("Load Game 📂");
+        loadGameBtn.setOnAction(e -> app.triggerManualLoad());
+        loadGameBtn.setStyle("-fx-background-color: #9C27B0; -fx-text-fill: white;");
+
+        // چینش نهایی همه‌ی المان‌ها در یک قاب متصل
+        this.getChildren().addAll(title, phaseLabel, statusLabel, startSetupBtn, rollDiceBtn,
+                buildMVPBtn, upgradeUnicornBtn, buildPartnershipBtn, endTurnBtn, saveGameBtn, loadGameBtn);
+
         update();
     }
 
@@ -92,9 +105,13 @@ public class ActionPane extends VBox {
             phaseLabel.setTextFill(Color.RED);
         }
 
-        String botTag = isBot ? " [BOT]" : "";
-        statusLabel.setText("Current Player:\n" + current.getName() + botTag);
-        statusLabel.setTextFill(getPlayerColor(current));
+        // 🎯 هوشمندسازی لِیبل وضعیت: اگر در حال ساخت‌وساز هستیم یا اروری روی صفحه است، آن را فوراً پاک نکن!
+        boolean boardIsBusy = app.getBoardCanvas() != null && app.getBoardCanvas().isBuildMode();
+        if (!boardIsBusy && !statusLabel.getText().startsWith("Error:")) {
+            String botTag = isBot ? " [BOT]" : "";
+            statusLabel.setText("Current Player:\n" + current.getName() + botTag);
+            statusLabel.setTextFill(getPlayerColor(current));
+        }
 
         boolean isSetup = (phase == GamePhase.SETUP);
         boolean inSetupMode = app.getBoardCanvas().isSetupMode();
@@ -115,14 +132,16 @@ public class ActionPane extends VBox {
         endTurnBtn.setManaged(isNormal && !isBot);
 
         if (isNormal && !isBot) {
-            rollDiceBtn.setDisable(engine.hasRolledThisTurn());
-            buildMVPBtn.setDisable(!engine.hasRolledThisTurn());
-            upgradeUnicornBtn.setDisable(!engine.hasRolledThisTurn());
-            buildPartnershipBtn.setDisable(!engine.hasRolledThisTurn());
-            endTurnBtn.setDisable(!engine.hasRolledThisTurn());
+            // دکمه‌ها فقط زمانی قفل شوند که بازرس در حال حرکت است
+            boolean auditorIsMoving = app.getBoardCanvas().isAuditorMovePending();
+
+            rollDiceBtn.setDisable(engine.hasRolledThisTurn() || auditorIsMoving);
+            buildMVPBtn.setDisable(!engine.hasRolledThisTurn() || auditorIsMoving);
+            upgradeUnicornBtn.setDisable(!engine.hasRolledThisTurn() || auditorIsMoving);
+            buildPartnershipBtn.setDisable(!engine.hasRolledThisTurn() || auditorIsMoving);
+            endTurnBtn.setDisable(!engine.hasRolledThisTurn() || auditorIsMoving);
         }
     }
-
     public void updateStatus(String message) {
         statusLabel.setText(message);
     }
@@ -148,10 +167,12 @@ public class ActionPane extends VBox {
             engine.updateLongestNetworkAward();
             app.updateUI();
 
-            // Handle discard flow if roll was 7
-            app.handleDiscardFlow(discardMap, () -> {
-                app.updateUI();
-            });
+            if (total == 7) {
+                app.handleDiscardFlow(discardMap, () -> {
+                    app.updateUI();
+                });
+            }
+
         } catch (Exception e) {
             statusLabel.setText("Error: " + e.getMessage());
         }
@@ -159,17 +180,17 @@ public class ActionPane extends VBox {
 
     private void buildMVP() {
         app.getBoardCanvas().enterBuildMVPMode();
-        statusLabel.setText("Click a vertex\nto place your MVP");
+        app.updateUI(); // 🔄 نوسازی وضعیت دکمه‌ها
     }
 
     private void upgradeToUnicorn() {
         app.getBoardCanvas().enterUpgradeUnicornMode();
-        statusLabel.setText("Click your MVP\nto upgrade to Unicorn");
+        app.updateUI();
     }
 
     private void buildPartnership() {
         app.getBoardCanvas().enterBuildPartnershipMode();
-        statusLabel.setText("Click an edge\nto place your partnership");
+        app.updateUI();
     }
 
     private void endTurn() {

@@ -1,7 +1,7 @@
 package controller;
 
 public enum GamePhase {
-    SETUP,   // فاز رفت و برگشت اول بازی (Snake Draft)
-    NORMAL,  // فاز عادی بازی (چرخشی معمولی)
-    FINISHED // پایان بازی
+    SETUP,   // (Snake Draft)
+    NORMAL,  // فاز عادی بازی ( normal game flow)
+    FINISHED // (finish ot the game)
 }

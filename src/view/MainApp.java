@@ -13,6 +13,7 @@ import controller.GameEngine;
 import controller.GamePhase;
 import controller.Market;
 import model.*;
+import util.SaveManager; // 📥 اضافه شدن پکیج ابزار ذخیره‌سازی شما
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -22,6 +23,7 @@ public class MainApp extends Application {
     private GameEngine engine;
     private model.Map gameMap;
     private Market market;
+    private BorderPane root; // 🛠️ تبدیل به فیلد کلاس برای دسترسی متد لود به تغییر چیدمان صفحه
     private BoardCanvas boardCanvas;
     private PlayerInfoPane playerInfoPane;
     private MarketPane marketPane;
@@ -29,20 +31,114 @@ public class MainApp extends Application {
     private DicePane dicePane;
 
     private static final double BOT_DELAY_SECONDS = 0.8;
+    private static final String SAVE_FILE_PATH = "savegame.dat"; // 💾 نام پیش‌فرض فایل ذخیره بازی
 
     @Override
     public void start(Stage primaryStage) {
+        root = new BorderPane();
+
+        // 🔍 گام اول: بررسی اینکه آیا کاربر می‌خواهد بازی قبلی را لود کند؟
+        Alert loadAlert = new Alert(Alert.AlertType.CONFIRMATION);
+        loadAlert.setTitle("Silicon Valley Catan");
+        loadAlert.setHeaderText("Welcome back!");
+        loadAlert.setContentText("Do you want to load your previous saved game?");
+        ButtonType buttonYes = new ButtonType("Yes, Load Game");
+        ButtonType buttonNo = new ButtonType("No, Start New Game");
+        loadAlert.getButtonTypes().setAll(buttonYes, buttonNo);
+
+        Optional<ButtonType> loadResult = loadAlert.showAndWait();
+
+        if (loadResult.isPresent() && loadResult.get() == buttonYes) {
+            // تلاش برای بارگذاری بازی
+            loadSavedGame(primaryStage);
+        } else {
+            // شروع بازی جدید طبق روال عادی باران
+            startNewGameFlow();
+        }
+
+        Scene scene = new Scene(root, 1200, 800);
+
+        primaryStage.setTitle("Silicon Valley Catan");
+        primaryStage.setScene(scene);
+
+        // 🚪 هوشمندی در لحظه خروج: اگر کاربر ضربدر پنجره را زد، بپرسد سیو شود یا نه
+        primaryStage.setOnCloseRequest(event -> {
+            Alert exitAlert = new Alert(Alert.AlertType.CONFIRMATION,
+                    "Do you want to save the game before exiting?",
+                    ButtonType.YES, ButtonType.NO, ButtonType.CANCEL);
+            exitAlert.setTitle("Exit Game");
+            exitAlert.setHeaderText("Closing Silicon Valley Catan");
+
+            Optional<ButtonType> result = exitAlert.showAndWait();
+            if (result.isPresent() && result.get() == ButtonType.YES) {
+                // ذخیره سریع بازی و خروج
+                SaveManager.saveGameAsync(SAVE_FILE_PATH, engine);
+            } else if (result.isPresent() && result.get() == ButtonType.CANCEL) {
+                event.consume(); // لغو فرآیند خروج و ماندن در بازی
+            }
+        });
+
+        primaryStage.show();
+    }
+
+    // 🆕 جریان ساخت بازی جدید
+    private void startNewGameFlow() {
         int playerCount = askPlayerCount();
         if (playerCount < 2 || playerCount > 4) {
             playerCount = 2;
         }
 
         boolean[] isBotArray = askPlayerTypes(playerCount);
-
         initializeGame(playerCount, isBotArray);
+        buildUIComponents();
 
-        BorderPane root = new BorderPane();
+        PauseTransition startupDelay = new PauseTransition(Duration.seconds(0.3));
+        startupDelay.setOnFinished(e -> checkAndRunBotTurn());
+        startupDelay.play();
+    }
 
+    // 📂 جریان بارگذاری بازی ذخیره شده از هارد
+    private void loadSavedGame(Stage stage) {
+        SaveManager.loadGameAsync(SAVE_FILE_PATH, new SaveManager.LoadGameCallback() {
+            @Override
+            public void onSuccess(GameEngine loadedEngine) {
+                // ⚠️ بسیار حیاتی: کدهای UI حتما باید در ترد اصلی جاوا اف‌ایکس اجرا شوند
+                Platform.runLater(() -> {
+                    engine = loadedEngine;
+                    gameMap = loadedEngine.getGameMap();
+                    // فرض بر این است که متد getMarket را در لایه گیم انجین دارید
+                    market = loadedEngine.getMarket();
+
+                    // بازسازی کامل المان‌های گرافیکی بر اساس دیتای لود شده
+                    buildUIComponents();
+
+                    Alert successAlert = new Alert(Alert.AlertType.INFORMATION, "Game loaded successfully!");
+                    successAlert.setTitle("Success");
+                    successAlert.setHeaderText(null);
+                    successAlert.show();
+
+                    // فعال کردن مجدد موتور بررسی نوبت بات‌ها در صورت نیاز
+                    checkAndRunBotTurn();
+                });
+            }
+
+            @Override
+            public void onFailure(String errorMessage) {
+                Platform.runLater(() -> {
+                    Alert errorAlert = new Alert(Alert.AlertType.ERROR, errorMessage + "\nStarting a new game instead.");
+                    errorAlert.setTitle("Load Failed");
+                    errorAlert.setHeaderText("Could not load save file");
+                    errorAlert.showAndWait();
+
+                    // اگر لود شکست خورد، سیستم به طور خودکار بازی جدید می‌سازد
+                    startNewGameFlow();
+                });
+            }
+        });
+    }
+
+    // 🏗️ متد کمکی برای ساخت و چینش کامپوننت‌های UI (جلوگیری از تکرار کد)
+    private void buildUIComponents() {
         boardCanvas = new BoardCanvas(gameMap, this);
         playerInfoPane = new PlayerInfoPane(engine, this);
         marketPane = new MarketPane(market, engine, this);
@@ -55,17 +151,22 @@ public class MainApp extends Application {
         root.setLeft(actionPane);
         root.setTop(dicePane);
 
-        Scene scene = new Scene(root, 1200, 800);
-
-        primaryStage.setTitle("Silicon Valley Catan - " + playerCount + " Players");
-        primaryStage.setScene(scene);
-        primaryStage.show();
-
         updateUI();
+    }
 
-        PauseTransition startupDelay = new PauseTransition(Duration.seconds(0.3));
-        startupDelay.setOnFinished(e -> checkAndRunBotTurn());
-        startupDelay.play();
+    // 💾 متد عمومی برای ذخیره دستی بازی (قابل فراخوانی از دکمه‌های ActionPane)
+    public void triggerManualSave() {
+        SaveManager.saveGameAsync(SAVE_FILE_PATH, engine);
+        Alert alert = new Alert(Alert.AlertType.INFORMATION, "Your current game state has been saved in background!");
+        alert.setTitle("Game Saved");
+        alert.setHeaderText(null);
+        alert.show();
+    }
+
+    // 📂 متد عمومی برای لود دستی بازی وسط جریان مسابقه
+    public void triggerManualLoad() {
+        Stage currentStage = (Stage) root.getScene().getWindow();
+        loadSavedGame(currentStage);
     }
 
     private int askPlayerCount() {
@@ -105,26 +206,24 @@ public class MainApp extends Application {
         for (int i = 0; i < playerCount; i++) {
             String name = isBotArray[i] ? "Bot " + (i + 1) : "Player " + (i + 1);
             Player player = isBotArray[i]
-                ? new SimpleBot(name, colors[i])
-                : new Player(name, colors[i]);
+                    ? new SimpleBot(name, colors[i])
+                    : new Player(name, colors[i]);
             players.add(player);
         }
 
         engine = new GameEngine(players, market, gameMap);
     }
 
-    // Handle discard flow: shows dialog for humans, auto-discards for bots
-    // Then handles auditor movement if it was a 7 roll
-    // Then calls onDone when all complete
     public void handleDiscardFlow(java.util.Map<Player, Integer> discardMap, Runnable onDone) {
+        // 🎯 اصلاح باگ: اگر کسی نیاز به سوزاندن کارت نداشت، بازی نباید مستقیم ادامه پیدا کند؛ بلکه باید ابتدا بازرس حرکت داده شود.
         if (discardMap == null || discardMap.isEmpty()) {
-            onDone.run();
+            handleAuditorMovement(onDone); // هدایت مستقیم به فاز جابه‌جایی بازرس
             return;
         }
 
         List<Player> affectedPlayers = new ArrayList<>(discardMap.keySet());
         processNextDiscard(discardMap, affectedPlayers, 0, () -> {
-            // After all discards, handle auditor movement
+            // پس از اینکه همه‌ی بازیکنانِ واجد شرایط کارت‌هایشان را سوزاندند، بازرس حرکت کند
             handleAuditorMovement(onDone);
         });
     }
@@ -133,7 +232,6 @@ public class MainApp extends Application {
         Player current = engine.getCurrentPlayer();
 
         if (current instanceof SimpleBot) {
-            // Bot auto-moves auditor to a random valid sector
             actionPane.updateStatus(current.getName() + " (BOT)\nmoving Auditor...");
             updateUI();
 
@@ -147,14 +245,9 @@ public class MainApp extends Application {
             });
             delay.play();
         } else {
-            // Human clicks a sector to move the auditor
             actionPane.updateStatus(current.getName() + ",\nclick a sector to\nmove the Auditor");
             updateUI();
             boardCanvas.enterMoveAuditorMode();
-
-            // Wait for the board canvas click to complete the move
-            // The enterMoveAuditorMode sets up the click handler which calls
-            // moveAuditor and then buildMode = NONE. We poll for completion.
             waitForAuditorMove(onDone);
         }
     }
@@ -172,7 +265,6 @@ public class MainApp extends Application {
     }
 
     private void autoMoveAuditor(SimpleBot bot) {
-        // Find a random sector with player structures (or any if none have structures)
         model.Sector[][] sectors = gameMap.getSectors();
         java.util.List<int[]> validTargets = new java.util.ArrayList<>();
 
@@ -202,7 +294,6 @@ public class MainApp extends Application {
             try {
                 engine.moveAuditor(bot, target[0], target[1]);
             } catch (Exception e) {
-                // If move fails, try any valid sector
                 for (int[] t : validTargets) {
                     try {
                         engine.moveAuditor(bot, t[0], t[1]);
@@ -215,8 +306,8 @@ public class MainApp extends Application {
 
     private boolean hasPlayersOnSector(model.Sector sector) {
         model.Vertex[] corners = {
-            sector.getBottomLeft(), sector.getBottomRight(),
-            sector.getTopLeft(), sector.getTopRight()
+                sector.getBottomLeft(), sector.getBottomRight(),
+                sector.getTopLeft(), sector.getTopRight()
         };
         for (model.Vertex v : corners) {
             if (v != null && v.hasStructure()) return true;
@@ -225,7 +316,7 @@ public class MainApp extends Application {
     }
 
     private void processNextDiscard(java.util.Map<Player, Integer> discardMap,
-                                     List<Player> affectedPlayers, int index, Runnable onDone) {
+                                    List<Player> affectedPlayers, int index, Runnable onDone) {
         if (index >= affectedPlayers.size()) {
             onDone.run();
             return;
@@ -235,7 +326,6 @@ public class MainApp extends Application {
         int amount = discardMap.get(player);
 
         if (player instanceof SimpleBot) {
-            // Bots auto-discard randomly
             player.discardRandomResources(amount);
             actionPane.updateStatus(player.getName() + " (BOT)\ndiscarded " + amount + " cards.");
             updateUI();
@@ -244,7 +334,6 @@ public class MainApp extends Application {
             delay.setOnFinished(e -> processNextDiscard(discardMap, affectedPlayers, index + 1, onDone));
             delay.play();
         } else {
-            // Human players choose which cards to discard
             actionPane.updateStatus(player.getName() + ",\nchoose cards to discard!");
             updateUI();
 
@@ -267,7 +356,6 @@ public class MainApp extends Application {
     public void checkAndRunBotTurn() {
         Player current = engine.getCurrentPlayer();
         if (!(current instanceof SimpleBot)) return;
-
         if (engine.getCurrentPhase() == GamePhase.FINISHED) return;
 
         PauseTransition delay = new PauseTransition(Duration.seconds(BOT_DELAY_SECONDS));
@@ -326,8 +414,8 @@ public class MainApp extends Application {
                 actionPane.updateStatus(bot.getName() + " rolled " + total);
                 updateUI();
 
-                // Handle discard flow if needed (roll of 7)
-                handleDiscardFlow(discardMap, () -> {
+                // 🎯 گام اول: بسته‌بندی منطق ساخت‌وساز و پایان نوبت ربات در یک بخش مجزا
+                Runnable botPostRollLogic = () -> {
                     PauseTransition buildDelay = new PauseTransition(Duration.seconds(0.6));
                     buildDelay.setOnFinished(e2 -> {
                         engine.playBotTurn(new Dice());
@@ -341,7 +429,17 @@ public class MainApp extends Application {
                         }
                     });
                     buildDelay.play();
-                });
+                };
+
+                // 🔥 گام دوم: تفکیک سرنوشت تاس ربات
+                if (total == 7) {
+                    // اگر ۷ آمد: ابتدا سوزاندن کارت‌ها و جابه‌جایی خودکار بازرس، سپس اجرای منطق ساخت‌وساز
+                    handleDiscardFlow(discardMap, botPostRollLogic);
+                } else {
+                    // اگر عددی غیر از ۷ آمد (مثل ۳): مستقیماً رفتن به سراغ ساخت‌وساز بدون دستکاری بازرس
+                    botPostRollLogic.run();
+                }
+
             } catch (Exception ex) {
                 actionPane.updateStatus("Bot error: " + ex.getMessage());
                 updateUI();
@@ -349,7 +447,6 @@ public class MainApp extends Application {
         });
         rollDelay.play();
     }
-
     private void showVictoryScreen() {
         Player winner = null;
         for (Player p : engine.getPlayers()) {

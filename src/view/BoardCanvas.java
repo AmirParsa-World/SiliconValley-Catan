@@ -107,52 +107,138 @@ public class BoardCanvas extends StackPane {
 
     private void handleBuildMVP(double mouseX, double mouseY) {
         Vertex clickedVertex = findVertexAt(mouseX, mouseY);
-        if (clickedVertex != null && !clickedVertex.hasStructure()
-            && app.getEngine().isValidStructurePlacement(clickedVertex)) {
-            try {
-                Player current = app.getEngine().getCurrentPlayer();
-                app.getEngine().buildMVP(current, clickedVertex);
-                app.getEngine().updateLongestNetworkAward();
-                buildMode = BuildMode.NONE;
-                app.getActionPane().updateStatus("MVP built!");
-                app.updateUI();
-            } catch (Exception e) {
-                app.getActionPane().updateStatus("Error: " + e.getMessage());
+        if (clickedVertex == null) return;
+        Player current = app.getEngine().getCurrentPlayer();
+
+        // ❌ حالت اول: بررسی قانون فاصله (ساخت روی یا کنار یک سازه دیگر) از طریق جاده‌های همسایه
+        for (Edge edge : clickedVertex.getNeighboringEdges()) {
+            if (edge != null) {
+                // پیدا کردن رأس همسایه از روی جاده
+                Vertex neighbor = (edge.getU() == clickedVertex) ? edge.getV() : edge.getU();
+
+                if (neighbor != null && neighbor.hasStructure()) {
+                    app.getActionPane().updateStatus("Error: Too close! 🛑\nDistance rule violated. Cannot build adjacent to another structure.");
+                    buildMode = BuildMode.NONE;
+                    app.updateUI();
+                    return;
+                }
             }
+        }
+
+        // ❌ حالت دوم: بررسی اتصال به جاده‌ها (جای نادرست و دور)
+        boolean isConnectedToRoad = false;
+        for (Edge edge : clickedVertex.getNeighboringEdges()) {
+            if (edge != null && current.equals(edge.getOwner())) {
+                isConnectedToRoad = true;
+                break;
+            }
+        }
+        if (!isConnectedToRoad) {
+            app.getActionPane().updateStatus("Error: Too far! 🗺️\nYou must build your MVP connected to at least one of your Partnerships (Roads).");
+            buildMode = BuildMode.NONE;
+            app.updateUI();
+            return;
+        }
+
+        // 💰 حالت سوم و چهارم: ارسال به موتور بازی جهت بررسی منابع مالی
+        try {
+            app.getEngine().buildMVP(current, clickedVertex);
+            app.getEngine().updateLongestNetworkAward();
+            buildMode = BuildMode.NONE;
+            app.getActionPane().updateStatus("MVP built successfully! 🎉");
+            app.updateUI();
+        } catch (Exception e) {
+            buildMode = BuildMode.NONE;
+            app.getActionPane().updateStatus("Error: Insufficient resources! 💸\n" + e.getMessage());
+            app.updateUI();
         }
     }
 
+    // ۲. مدیریت دقیق خطاهای ساخت جاده (Partnership)
     private void handleBuildPartnership(double mouseX, double mouseY) {
         Edge clickedEdge = findEdgeAt(mouseX, mouseY);
-        if (clickedEdge != null && clickedEdge.getOwner() == null) {
-            try {
-                Player current = app.getEngine().getCurrentPlayer();
-                app.getEngine().buildPartnership(current, clickedEdge);
-                app.getEngine().updateLongestNetworkAward();
-                buildMode = BuildMode.NONE;
-                app.getActionPane().updateStatus("Partnership built!");
-                app.updateUI();
-            } catch (Exception e) {
-                app.getActionPane().updateStatus("Error: " + e.getMessage());
-            }
+        if (clickedEdge == null) return;
+        Player current = app.getEngine().getCurrentPlayer();
+
+        // ❌ حالت اول: جاده قبلاً گرفته شده
+        if (clickedEdge.getOwner() != null) {
+            app.getActionPane().updateStatus("Error: Invalid Edge! 🛑\nThis partnership path is already owned by " + clickedEdge.getOwner().getName());
+            buildMode = BuildMode.NONE;
+            app.updateUI();
+            return;
+        }
+
+        // ❌ حالت دوم: بررسی اتصال جاده به سازه‌ها یا جاده‌های دیگر بازیکن - جای نادرست و دور
+        boolean isConnected = false;
+        Vertex u = clickedEdge.getU();
+        Vertex v = clickedEdge.getV();
+
+        if ((u.hasStructure() && current.equals(u.getOwner())) || (v.hasStructure() && current.equals(v.getOwner()))) {
+            isConnected = true;
+        }
+        for (Edge edge : u.getNeighboringEdges()) {
+            if (edge != clickedEdge && current.equals(edge.getOwner())) isConnected = true;
+        }
+        for (Edge edge : v.getNeighboringEdges()) {
+            if (edge != clickedEdge && current.equals(edge.getOwner())) isConnected = true;
+        }
+
+        if (!isConnected) {
+            app.getActionPane().updateStatus("Error: Unconnected Path! 🗺️\nPartnerships must connect to your existing roads or structures.");
+            buildMode = BuildMode.NONE;
+            app.updateUI();
+            return;
+        }
+
+        // 💰 حالت سوم و چهارم: بررسی منابع در بک‌اَند
+        try {
+            app.getEngine().buildPartnership(current, clickedEdge);
+            app.getEngine().updateLongestNetworkAward();
+            buildMode = BuildMode.NONE;
+            app.getActionPane().updateStatus("Partnership built successfully! 🛣️");
+            app.updateUI();
+        } catch (Exception e) {
+            buildMode = BuildMode.NONE;
+            app.getActionPane().updateStatus("Error: Insufficient resources for Road! 💸\n" + e.getMessage());
+            app.updateUI();
         }
     }
 
+    // ۳. مدیریت دقیق خطاهای ارتقا به تک‌شاخ (Unicorn)
     private void handleUpgradeUnicorn(double mouseX, double mouseY) {
         Vertex clickedVertex = findVertexAt(mouseX, mouseY);
-        if (clickedVertex != null && clickedVertex.hasStructure()
-            && clickedVertex.getStructure() instanceof MVP
-            && clickedVertex.getOwner().equals(app.getEngine().getCurrentPlayer())) {
-            try {
-                Player current = app.getEngine().getCurrentPlayer();
-                app.getEngine().upgradeToUnicorn(current, clickedVertex);
-                app.getEngine().updateLongestNetworkAward();
-                buildMode = BuildMode.NONE;
-                app.getActionPane().updateStatus("Upgraded to Unicorn!");
-                app.updateUI();
-            } catch (Exception e) {
-                app.getActionPane().updateStatus("Error: " + e.getMessage());
-            }
+        if (clickedVertex == null) return;
+        Player current = app.getEngine().getCurrentPlayer();
+
+        // ❌ حالت اول: کلیک روی جای خالی یا سازه دیگران یا تک‌شاخ قبلی - جای نادرست
+        boolean hasStructure = clickedVertex.hasStructure();
+        boolean isMVP = hasStructure && clickedVertex.getStructure() instanceof MVP;
+        boolean isOwner = hasStructure && current.equals(clickedVertex.getOwner());
+
+        if (!hasStructure || !isOwner) {
+            app.getActionPane().updateStatus("Error: Invalid Target! 🦄\nYou can only upgrade a structure that belongs to you!");
+            buildMode = BuildMode.NONE;
+            app.updateUI();
+            return;
+        }
+        if (!isMVP) {
+            app.getActionPane().updateStatus("Error: Already Upgraded! 🛑\nThis structure is already a Unicorn or is not an MVP.");
+            buildMode = BuildMode.NONE;
+            app.updateUI();
+            return;
+        }
+
+        // 💰 حالت سوم و چهارم: بررسی منابع ارتقا در بک‌اَند
+        try {
+            app.getEngine().upgradeToUnicorn(current, clickedVertex);
+            app.getEngine().updateLongestNetworkAward();
+            buildMode = BuildMode.NONE;
+            app.getActionPane().updateStatus("Upgraded to Unicorn successfully! 🦄✨");
+            app.updateUI();
+        } catch (Exception e) {
+            buildMode = BuildMode.NONE;
+            app.getActionPane().updateStatus("Error: Insufficient assets for Unicorn! 💸\n" + e.getMessage());
+            app.updateUI();
         }
     }
 
@@ -407,6 +493,13 @@ public class BoardCanvas extends StackPane {
             gc.setFont(Font.font("Arial", FontWeight.BOLD, 12));
             gc.fillText("BLOCKED", x + 15, y + SQUARE_SIZE / 2 + 4);
         }
+
+        if (buildMode == BuildMode.MOVE_AUDITOR) {
+            gc.setStroke(Color.CYAN);
+            gc.setLineWidth(3);
+            gc.strokeRect(x + 3, y + 3, SQUARE_SIZE - 6, SQUARE_SIZE - 6);
+        }
+
     }
 
     private void drawEdges(GraphicsContext gc) {
