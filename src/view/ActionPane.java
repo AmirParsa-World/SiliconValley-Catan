@@ -141,7 +141,7 @@ public class ActionPane extends VBox {
         boolean isBot = current instanceof SimpleBot;
 
         if (phase == GamePhase.SETUP) {
-            phaseLabel.setText("SETUP PHASE");
+            phaseLabel.setText("SETUP PHASE - Place starting MVP & Partnership");
             phaseLabel.setTextFill(Color.ORANGE);
         } else if (phase == GamePhase.NORMAL) {
             phaseLabel.setText("NORMAL PHASE");

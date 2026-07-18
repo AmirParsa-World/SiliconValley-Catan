@@ -9,6 +9,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
+import javafx.scene.text.FontPosture;
 import javafx.scene.text.FontWeight;
 import model.*;
 import controller.GameEngine;
@@ -31,6 +32,8 @@ public class MarketPane extends HBox {
     private Button[] buyButtons;
     private Button[] sellButtons;
 
+    private Label hintLabel;
+
     public MarketPane(Market market, GameEngine engine, MainApp app) {
         this.market = market;
         this.engine = engine;
@@ -43,13 +46,17 @@ public class MarketPane extends HBox {
         title.setFont(Font.font("Arial", FontWeight.BOLD, 14));
         title.setPadding(new Insets(0, 8, 0, 0));
 
+        hintLabel = new Label("Roll dice first to trade!");
+        hintLabel.setFont(Font.font("Arial", FontPosture.ITALIC, 11));
+        hintLabel.setTextFill(Color.GRAY);
+
         resourceColumns = new VBox[TRADEABLE.length];
         priceLabels = new Label[TRADEABLE.length];
         ownedLabels = new Label[TRADEABLE.length];
         buyButtons = new Button[TRADEABLE.length];
         sellButtons = new Button[TRADEABLE.length];
 
-        this.getChildren().add(title);
+        this.getChildren().addAll(title, hintLabel);
 
         for (int i = 0; i < TRADEABLE.length; i++) {
             resourceColumns[i] = createResourceColumn(i);
@@ -103,6 +110,9 @@ public class MarketPane extends HBox {
 
     private void buyResource(ResourceType type) {
         Player current = engine.getCurrentPlayer();
+        System.out.println("buyResource called for " + type + ", player=" + current.getName()
+            + ", isBot=" + (current instanceof SimpleBot)
+            + ", phase=" + engine.getCurrentPhase());
         if (current instanceof SimpleBot) return;
         if (engine.getCurrentPhase() != GamePhase.NORMAL) return;
 
@@ -118,6 +128,9 @@ public class MarketPane extends HBox {
 
     private void sellResource(ResourceType type) {
         Player current = engine.getCurrentPlayer();
+        System.out.println("sellResource called for " + type + ", player=" + current.getName()
+            + ", isBot=" + (current instanceof SimpleBot)
+            + ", phase=" + engine.getCurrentPhase());
         if (current instanceof SimpleBot) return;
         if (engine.getCurrentPhase() != GamePhase.NORMAL) return;
 
@@ -136,6 +149,27 @@ public class MarketPane extends HBox {
         boolean canTrade = engine.getCurrentPhase() == GamePhase.NORMAL
             && !(current instanceof SimpleBot)
             && engine.hasRolledThisTurn();
+
+        // Debug output
+        System.out.println("MarketPane update: phase=" + engine.getCurrentPhase()
+            + ", isBot=" + (current instanceof SimpleBot)
+            + ", hasRolled=" + engine.hasRolledThisTurn()
+            + ", canTrade=" + canTrade);
+
+        // Update hint label
+        if (canTrade) {
+            hintLabel.setText("Trading enabled - buy/sell resources!");
+            hintLabel.setTextFill(Color.GREEN);
+        } else if (engine.getCurrentPhase() == GamePhase.SETUP) {
+            hintLabel.setText("Complete setup first");
+            hintLabel.setTextFill(Color.ORANGE);
+        } else if (current instanceof SimpleBot) {
+            hintLabel.setText("Waiting for bot...");
+            hintLabel.setTextFill(Color.GRAY);
+        } else {
+            hintLabel.setText("Roll dice first to trade!");
+            hintLabel.setTextFill(Color.GRAY);
+        }
 
         for (int i = 0; i < TRADEABLE.length; i++) {
             ResourceType type = TRADEABLE[i];

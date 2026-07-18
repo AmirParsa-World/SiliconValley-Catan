@@ -121,7 +121,12 @@ public class DicePane extends HBox {
     }
 
     public void update() {
-        // Keep showing last dice result
+        // Refresh dice display if results exist
+        if (totalLabel != null && !totalLabel.getText().equals("-")) {
+            // Redraw dice canvases to ensure they're visible
+            dice1Canvas.getParent().requestLayout();
+            dice2Canvas.getParent().requestLayout();
+        }
     }
 
     public void showDiceResult(int dice1, int dice2) {
@@ -136,5 +141,8 @@ public class DicePane extends HBox {
         } else {
             totalLabel.setTextFill(Color.BLACK);
         }
+
+        // Visual feedback: highlight the dice pane background briefly
+        this.setStyle("-fx-padding: 15; -fx-background-color: #e0e0e0; -fx-border-color: #4CAF50; -fx-border-width: 0 0 2 0;");
     }
 }
