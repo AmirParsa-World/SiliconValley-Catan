@@ -6,6 +6,7 @@ import javafx.application.Platform;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import controller.GameEngine;
@@ -38,9 +39,6 @@ public class MainApp extends Application {
         this.primaryStage = primaryStage;
 
         root = new BorderPane();
-
-        MenuBar menuBar = createMenuBar();
-        root.setTop(menuBar);
 
         int playerCount = askPlayerCount();
         if (playerCount < 2 || playerCount > 4) {
@@ -161,6 +159,10 @@ public class MainApp extends Application {
         actionPane = new ActionPane(engine, gameMap, this);
         dicePane = new DicePane(engine, this);
 
+        MenuBar menuBar = createMenuBar();
+        VBox topBar = new VBox(menuBar, dicePane);
+
+        root.setTop(topBar);
         root.setCenter(boardCanvas);
         root.setRight(playerInfoPane);
         root.setBottom(marketPane);
