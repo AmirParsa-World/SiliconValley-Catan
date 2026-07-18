@@ -3,6 +3,7 @@ package view;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBase;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -28,6 +29,8 @@ public class ActionPane extends VBox {
     private Button endTurnBtn;
     private Button saveGameBtn;
     private Button loadGameBtn;
+    private boolean isReviewingSummary = false;
+    private int humanStartLogSize = 0;
 
     public ActionPane(GameEngine engine, model.Map gameMap, MainApp app) {
         this.engine = engine;
@@ -202,6 +205,8 @@ public class ActionPane extends VBox {
 
     private void rollDice() {
         try {
+            humanStartLogSize = engine.getGameLog().size();
+
             Dice dice = new Dice();
             int total = engine.rollDice(dice);
 
@@ -226,25 +231,61 @@ public class ActionPane extends VBox {
     private void buildMVP() {
         app.getBoardCanvas().enterBuildMVPMode();
         app.updateUI();
+        app.getDicePane().updateLiveTicker
+                ("🏗️ Click the map to deploy your new MVP structure!", "BUILD");
     }
 
     private void upgradeToUnicorn() {
         app.getBoardCanvas().enterUpgradeUnicornMode();
         app.updateUI();
+        app.getDicePane().updateLiveTicker
+                ("🦄 Select one of your MVPs to upgrade to a Tech Unicorn!", "BUILD");
     }
 
     private void buildPartnership() {
         app.getBoardCanvas().enterBuildPartnershipMode();
         app.updateUI();
+        app.getDicePane().updateLiveTicker
+                ("🛣️ Click an empty road edge to secure a new Partnership!", "BUILD");
     }
 
-    private void endTurn() {
-        app.getBoardCanvas().cancelBuildMode();
-        engine.setHasRolledThisTurn(false);
-        engine.nextTurn();
-        statusLabel.setText("Turn ended!");
-        app.updateUI();
-        app.checkAndRunBotTurn();
+// ۱. ابتدا یک فیلد برای ثبت شروع لاگ پلیر واقعی در کلاس ActionPane تعریف کن یا به صورت داینامیک هندل کن
+// بهترین کار این است که متد endTurn را به این شکل ویرایش کنی:
+
+    public void endTurn() {
+        if (!isReviewingSummary) {
+            // 🏁 مرحله اول: قفل کردن ابزارها و نمایش خلاصه‌ی عملکرد خودت
+            app.getBoardCanvas().cancelBuildMode();
+
+            // فراخوانی متد خلاصه‌ساز برای کارهایی که خودت در این دور کردی
+            app.displayTurnSummary(humanStartLogSize, engine.getCurrentPlayer().getName(), "BUILD");
+
+            // تغییر فیس دکمه برای تایید نهایی دور
+            endTurnBtn.setText("Review Round Log 📋");
+            endTurnBtn.setStyle("-fx-background-color: #FF9800; -fx-text-fill: white; -fx-font-weight: bold;"); // نارنجی استارتاپی
+
+            // غیرفعال کردن بقیه دکمه‌ها تا بازیکن وسط فاز خلاصه کاری نکند
+            rollDiceBtn.setDisable(true);
+            buildMVPBtn.setDisable(true);
+            upgradeUnicornBtn.setDisable(true);
+            buildPartnershipBtn.setDisable(true);
+
+            isReviewingSummary = true;
+        } else {
+            // 🏁 مرحله دوم: کلیک دوباره روی دکمه نارنجی -> انتقال قطعی نوبت به بعدی
+            isReviewingSummary = false;
+
+            // ریست کردن ظاهر دکمه به حالت اولیه
+            endTurnBtn.setText("End Turn");
+            endTurnBtn.setStyle(null);
+
+            engine.setHasRolledThisTurn(false);
+            engine.nextTurn();
+            app.updateUI();
+
+            // هول دادن بازی به سمت بررسی نوبت بعدی
+            app.checkAndRunBotTurn();
+        }
     }
 
     private Color getPlayerColor(Player player) {
@@ -255,5 +296,17 @@ public class ActionPane extends VBox {
             case "Yellow": return Color.YELLOW;
             default: return Color.BLACK;
         }
+    }
+
+    public ButtonBase getEndTurnBtn() {
+        return endTurnBtn;
+    }
+
+    // 🚩 متد جدید برای بازنشانی دقیق لاگ‌ها در ثانیه اول شروع نوبت شما
+    public void initTurnLogStart(int currentLogSize) {
+        this.humanStartLogSize = currentLogSize;
+        this.isReviewingSummary = false;
+        this.endTurnBtn.setText("End Turn");
+        this.endTurnBtn.setStyle(null);
     }
 }

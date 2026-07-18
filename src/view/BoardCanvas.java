@@ -118,8 +118,12 @@ public class BoardCanvas extends StackPane {
         Edge clickedEdge = findEdgeAt(mouseX, mouseY);
         if (clickedEdge != null && clickedEdge.getOwner() == null && selectedVertex != null) {
             if (clickedEdge.getU() == selectedVertex || clickedEdge.getV() == selectedVertex) {
+                Player current = app.getEngine().getCurrentPlayer();
+
                 app.getEngine().setupPlaceMVPAndPartnership(
                     app.getEngine().getCurrentPlayer(), selectedVertex, clickedEdge);
+
+                app.getEngine().log("🚀 " + current.getName() + " placed initial MVP and starting Partnership.");
 
                 selectedVertex = null;
                 buildMode = BuildMode.NONE;
@@ -168,6 +172,9 @@ public class BoardCanvas extends StackPane {
         // 💰 حالت سوم و چهارم: ارسال به موتور بازی جهت بررسی منابع مالی
         try {
             app.getEngine().buildMVP(current, clickedVertex);
+
+            app.getEngine().log("🏗️ " + current.getName() + " successfully deployed a new MVP.");
+
             app.getEngine().updateLongestNetworkAward();
             buildMode = BuildMode.NONE;
             app.getActionPane().updateStatus("MVP built successfully! 🎉");
@@ -218,6 +225,9 @@ public class BoardCanvas extends StackPane {
         // 💰 حالت سوم و چهارم: بررسی منابع در بک‌اَند
         try {
             app.getEngine().buildPartnership(current, clickedEdge);
+
+            app.getEngine().log(" Road Secured: " + current.getName() + " established a new Partnership path.");
+
             app.getEngine().updateLongestNetworkAward();
             buildMode = BuildMode.NONE;
             app.getActionPane().updateStatus("Partnership built successfully! 🛣️");
@@ -256,6 +266,10 @@ public class BoardCanvas extends StackPane {
         // 💰 حالت سوم و چهارم: بررسی منابع ارتقا در بک‌اَند
         try {
             app.getEngine().upgradeToUnicorn(current, clickedVertex);
+
+            app.getEngine().log("🦄✨ Valuation Spike! " + current.getName() + " upgraded an MVP into a Tech Unicorn!");
+
+
             app.getEngine().updateLongestNetworkAward();
             buildMode = BuildMode.NONE;
             app.getActionPane().updateStatus("Upgraded to Unicorn successfully! 🦄✨");
@@ -391,6 +405,10 @@ public class BoardCanvas extends StackPane {
         try {
             Player current = app.getEngine().getCurrentPlayer();
             app.getEngine().moveAuditor(current, row, col);
+
+            app.getEngine().log("🕵️‍♂️ Auditor Deployed: " + current.getName() + " moved the Regulatory Inspector to Sector [" + row + "," + col + "].");
+
+
             buildMode = BuildMode.NONE;
             app.getActionPane().updateStatus("Auditor moved!");
             app.updateUI();

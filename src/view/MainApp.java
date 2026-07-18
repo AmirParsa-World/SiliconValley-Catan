@@ -323,6 +323,7 @@ public class MainApp extends Application {
             int[] target = validTargets.get(new java.util.Random().nextInt(validTargets.size()));
             try {
                 engine.moveAuditor(bot, target[0], target[1]);
+                engine.log("🕵️‍♂️ " + bot.getName() + " moved the Auditor to Sector [" + target[0] + "," + target[1] + "].");
             } catch (Exception e) {
                 for (int[] t : validTargets) {
                     try {
@@ -357,6 +358,9 @@ public class MainApp extends Application {
 
         if (player instanceof SimpleBot) {
             player.discardRandomResources(amount);
+
+            engine.log("🚨 " + player.getName() + " [BOT] lost " + amount + " tech cards to the Tax Inspector.");
+
             actionPane.updateStatus(player.getName() + " (BOT)\ndiscarded " + amount + " cards.");
             updateUI();
 
@@ -371,6 +375,9 @@ public class MainApp extends Application {
             showDelay.setOnFinished(e -> {
                 Platform.runLater(() -> {
                     DiscardDialog.show(player, amount);
+
+                    engine.log("🚨 " + player.getName() + " lost " + amount + " tech cards to the Tax Inspector.");
+
                     actionPane.updateStatus(player.getName() + "\ndiscarded " + amount + " cards.");
                     updateUI();
 
@@ -385,8 +392,14 @@ public class MainApp extends Application {
 
     public void checkAndRunBotTurn() {
         Player current = engine.getCurrentPlayer();
-        if (!(current instanceof SimpleBot)) return;
-        if (engine.getCurrentPhase() == GamePhase.FINISHED) return;
+
+        if (!(current instanceof SimpleBot)) {
+            actionPane.initTurnLogStart(engine.getGameLog().size());
+            return;
+        }
+
+        if (engine.getCurrentPhase() == GamePhase.FINISHED)
+            return;
 
         PauseTransition delay = new PauseTransition(Duration.seconds(BOT_DELAY_SECONDS));
         delay.setOnFinished(e -> {
@@ -433,40 +446,68 @@ public class MainApp extends Application {
         actionPane.updateStatus(bot.getName() + " (BOT)\nis thinking...");
         updateUI();
 
-        PauseTransition rollDelay = new PauseTransition(Duration.seconds(0.5));
+        // 🚩 ثبت نقطه شروع لاگ‌ها برای محاسبه پکیج خلاصه این نوبت ربات
+        int startLogSize = engine.getGameLog().size();
+
+        // 🎲 گام اول: مکث کوتاه برای پرتاب تاس ربات
+        PauseTransition rollDelay = new PauseTransition(Duration.seconds(1.2));
         rollDelay.setOnFinished(e -> {
             try {
                 Dice dice = new Dice();
                 int total = engine.rollDice(dice);
                 dicePane.showDiceResult(dice.getLastDie1(), dice.getLastDie2());
+
+                dicePane.updateLiveTicker("🎲 🤖 " + bot.getName() + " rolled a total of " + total + "!", "BOT");
+
                 java.util.Map<Player, Integer> discardMap = engine.distributeResources(total);
                 engine.updateLongestNetworkAward();
-                actionPane.updateStatus(bot.getName() + " rolled " + total);
                 updateUI();
 
-                // 🎯 گام اول: بسته‌بندی منطق ساخت‌وساز و پایان نوبت ربات در یک بخش مجزا
+                // منطق پس از تاس ربات
                 Runnable botPostRollLogic = () -> {
-                    PauseTransition buildDelay = new PauseTransition(Duration.seconds(0.6));
+                    // گام دوم: مکث برای ساخت و ساز هوش مصنوعی
+                    PauseTransition buildDelay = new PauseTransition(Duration.seconds(1.8));
                     buildDelay.setOnFinished(e2 -> {
+                        // 🎰 اجرای هوش مصنوعی (این متد در بک‌اند نوبت را به بازیکن بعدی می‌دهد)
                         engine.playBotTurn(new Dice());
                         engine.updateLongestNetworkAward();
+
+                        // 🎯 گام طلایی: تولید و نمایش پکیج کامل خلاصه عملکرد ربات در بالای صفحه
+                        displayTurnSummary(startLogSize, bot.getName(), "BUILD");
                         updateUI();
 
-                        if (engine.getCurrentPhase() == GamePhase.FINISHED) {
-                            showVictoryScreen();
-                        } else {
-                            checkAndRunBotTurn();
-                        }
+                        // 🚨 گام سوم: فعال کردن دکمه تایید نوبت ربات برای بازیکن انسان
+                        Platform.runLater(() -> {
+                            actionPane.getEndTurnBtn().setText("Next Turn ➡️");
+                            actionPane.getEndTurnBtn().setDisable(false);
+                            actionPane.getEndTurnBtn().setVisible(true);
+                            actionPane.getEndTurnBtn().setManaged(true);
+                            actionPane.getEndTurnBtn().setStyle("-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-weight: bold;"); // آبی کارآگاهی
+
+                            // تغییر موقت عملکرد دکمه برای عبور از نوبت ربات
+                            actionPane.getEndTurnBtn().setOnAction(evt -> {
+                                // بازگرداندن دکمه به حالت عادی انسان
+                                actionPane.getEndTurnBtn().setText("End Turn");
+                                actionPane.getEndTurnBtn().setStyle(null);
+                                // بازگرداندن هندلر دکمه به متد اصلی خود کلاس ActionPane
+                                actionPane.getEndTurnBtn().setOnAction(click -> actionPane.endTurn());
+
+                                if (engine.getCurrentPhase() == GamePhase.FINISHED) {
+                                    showVictoryScreen();
+                                } else {
+                                    updateUI();
+                                    checkAndRunBotTurn(); // هدایت به دور بعدی
+                                }
+                            });
+                        });
                     });
                     buildDelay.play();
                 };
 
-                // 🔥 گام دوم: تفکیک سرنوشت تاس ربات
                 if (total == 7) {
-                    // اگر ۷ آمد: ابتدا سوزاندن کارت‌ها و جابه‌جایی خودکار بازرس، سپس اجرای منطق ساخت‌وساز
+                    dicePane.updateLiveTicker("🚨 Tax Auditor Alert! Checking resource cards...", "PENALTY");
                     handleDiscardFlow(discardMap, botPostRollLogic);
                 } else {
-                    // اگر عددی غیر از ۷ آمد (مثل ۳): مستقیماً رفتن به سراغ ساخت‌وساز بدون دستکاری بازرس
                     botPostRollLogic.run();
                 }
 
@@ -510,6 +551,66 @@ public class MainApp extends Application {
     public BoardCanvas getBoardCanvas() { return boardCanvas; }
     public ActionPane getActionPane() { return actionPane; }
 
+    void displayTurnSummary(int startLogSize, String entityName, String type) {
+        List<String> logs = engine.getGameLog();
+        int currentSize = logs.size();
+
+        if (currentSize <= startLogSize) {
+            dicePane.updateLiveTicker("📋 " + entityName + ": No moves this turn.", type);
+            return;
+        }
+
+        StringBuilder summary = new StringBuilder("📋 " + entityName + ": ");
+        List<String> compactEvents = new ArrayList<>();
+
+        for (int i = startLogSize; i < currentSize; i++) {
+            String logLine = logs.get(i);
+
+            // 🔍 مترجم هوشمند جملات به کلمات کلیدی تلگرافی (اسم + فعل / آیتم)
+            if (logLine.contains("rolled a")) {
+                String num = logLine.replaceAll(".*rolled a (\\d+).*", "$1");
+                compactEvents.add("🎲 Dice: " + num);
+            }
+            else if (logLine.contains("built an MVP") || logLine.contains("successfully deployed a new MVP")) {
+                compactEvents.add("🏗️ MVP: Built");
+            }
+            else if (logLine.contains("established a Partnership") || logLine.contains("Road Secured")) {
+                compactEvents.add(" Establish");
+            }
+            else if (logLine.contains("upgraded an MVP") || logLine.contains("Valuation Spike")) {
+                compactEvents.add("🦄 Unicorn: Upgraded");
+            }
+            else if (logLine.contains("moved the Regulatory Inspector") || logLine.contains("AUDITOR: Moved")) {
+                String coords = logLine.replaceAll(".*sector \\((\\d+,\\d+)\\).*", "[$1]");
+                if (coords.length() > 10) coords = logLine.replaceAll(".*Sector \\[(\\d+,\\d+)\\].*", "[$1]");
+                compactEvents.add("🕵️‍♂️ Auditor: Moved " + coords);
+            }
+            else if (logLine.contains("earned") || logLine.contains("YIELD")) {
+                // استخراج مقدار و نوع ریسورس مثلا: 1 DATA
+                String resourceDetails = logLine.replaceAll(".*received (\\d+ \\w+).*", "+$1");
+                if(resourceDetails.equals(logLine)) {
+                    resourceDetails = logLine.replaceAll(".*earned (\\d+ \\w+).*", "+$1");
+                }
+                compactEvents.add("📦 Res: " + resourceDetails);
+            }
+            else if (logLine.contains("lost") || logLine.contains("TAXED")) {
+                String taxAmount = logLine.replaceAll(".*discarded (\\d+).*", "-$1 Cards");
+                if(taxAmount.equals(logLine)) {
+                    taxAmount = logLine.replaceAll(".*must discard (\\d+).*", "-$1 Cards");
+                }
+                compactEvents.add("🚨 Tax Penalty: " + taxAmount);
+            }
+            else if (logLine.contains("TRADE") || logLine.contains("TRANSACTION")) {
+                compactEvents.add("🔄 Peer Trade: Executed");
+            }
+        }
+
+        // ⚡ ترکیب جذاب و خطی کلمات با تفکیک‌کننده‌ی لوله (Pipe Symbol)
+        summary.append(String.join("  |  ", compactEvents));
+
+        // ارسال نهایی به تیکر بزرگ شده‌ی بالا
+        dicePane.updateLiveTicker(summary.toString().trim(), type);
+    }
     public static void main(String[] args) {
         launch(args);
     }

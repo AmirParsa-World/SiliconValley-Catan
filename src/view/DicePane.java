@@ -17,6 +17,7 @@ public class DicePane extends HBox {
     private Canvas dice1Canvas;
     private Canvas dice2Canvas;
     private Label totalLabel;
+    private Label liveTickerLabel;
 
     private static final int DIE_SIZE = 60;
     private static final int DOT_RADIUS = 6;
@@ -48,7 +49,16 @@ public class DicePane extends HBox {
         StackPane dice1Pane = new StackPane(dice1Canvas);
         StackPane dice2Pane = new StackPane(dice2Canvas);
 
-        this.getChildren().addAll(dice1Text, dice1Pane, dice2Text, dice2Pane, totalText, totalLabel);
+        liveTickerLabel = new Label("✨ Game Started! Welcome to Silicon Valley Catan.");
+        liveTickerLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+        liveTickerLabel.setStyle("-fx-background-color: #424242; -fx-padding: 8 15; -fx-background-radius: 5; -fx-text-fill: white;");
+        liveTickerLabel.setWrapText(true);
+        liveTickerLabel.setPrefWidth(700); // 💡 افزایش پهنای باکس برای جاگیری کلمات افقی
+        liveTickerLabel.setPrefHeight(45);
+        HBox.setMargin(liveTickerLabel, new javafx.geometry.Insets(0, 0, 0, 40)); // فاصله دادن از عدد تاس
+
+        this.getChildren().addAll(dice1Text, dice1Pane, dice2Text, dice2Pane, totalText, totalLabel, liveTickerLabel);
+
     }
 
     private void drawBlankDie(Canvas canvas) {
@@ -137,4 +147,25 @@ public class DicePane extends HBox {
             totalLabel.setTextFill(Color.BLACK);
         }
     }
+
+    public void updateLiveTicker(String message, String type) {
+        liveTickerLabel.setText(message);
+        switch (type) {
+            case "DICE":
+                liveTickerLabel.setStyle("-fx-background-color: #2196F3; -fx-padding: 8 15; -fx-background-radius: 5; -fx-text-fill: white;");
+                break;
+            case "BUILD":
+                liveTickerLabel.setStyle("-fx-background-color: #4CAF50; -fx-padding: 8 15; -fx-background-radius: 5; -fx-text-fill: white;");
+                break;
+            case "PENALTY":
+                liveTickerLabel.setStyle("-fx-background-color: #F44336; -fx-padding: 8 15; -fx-background-radius: 5; -fx-text-fill: white;");
+                break;
+            case "BOT":
+                liveTickerLabel.setStyle("-fx-background-color: #E91E63; -fx-padding: 8 15; -fx-background-radius: 5; -fx-text-fill: white;");
+                break;
+            default:
+                liveTickerLabel.setStyle("-fx-background-color: #757575; -fx-padding: 8 15; -fx-background-radius: 5; -fx-text-fill: white;");
+        }
+    }
+
 }
