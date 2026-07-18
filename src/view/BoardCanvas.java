@@ -512,21 +512,22 @@ public class BoardCanvas extends StackPane {
         gc.setLineWidth(1.5);
         gc.strokeRect(x, y, SQUARE_SIZE, SQUARE_SIZE);
 
-        // 🎯 تغییر طلایی: فقط عدد تاس را می‌نویسیم (اندازه فونت متناسب با SQUARE_SIZE)
+        // 🎯 عدد تاس دقیقاً در مرکز کاشی بدون هیچ مزاحمی
         double fontSize = SQUARE_SIZE * 0.25;
         gc.setFont(Font.font("Arial", FontWeight.BOLD, fontSize));
         gc.setFill(Color.BLACK);
 
         String numStr = String.valueOf(sector.getActivationNumber());
-        // تقریب زدن مرکز کاشی برای نوشتن عدد تاس
         gc.fillText(numStr, x + (SQUARE_SIZE / 2.0) - (fontSize * 0.3 * numStr.length()), y + (SQUARE_SIZE / 2.0) + (fontSize * 0.3));
 
+        // ⚠️ به جای پوشاندن کل صفحه، یک اورلی بسیار ملایم و یک تگ شیک در گوشه بالا-چپ می‌زنیم
         if (sector.isBlocked()) {
-            gc.setFill(Color.rgb(255, 0, 0, 0.4));
+            gc.setFill(Color.rgb(255, 0, 0, 0.12)); // هاله قرمز بسیار ملایم
             gc.fillRect(x, y, SQUARE_SIZE, SQUARE_SIZE);
-            gc.setFill(Color.RED);
-            gc.setFont(Font.font("Arial", FontWeight.BOLD, Math.max(9, SQUARE_SIZE * 0.15)));
-            gc.fillText("BLOCKED", x + (SQUARE_SIZE * 0.1), y + (SQUARE_SIZE / 2.0));
+
+            gc.setFill(Color.web("#B22222")); // قرمز تیره پخته
+            gc.setFont(Font.font("Arial", FontWeight.BOLD, Math.max(8, SQUARE_SIZE * 0.12)));
+            gc.fillText("⚠️ LOCKED", x + 6, y + (SQUARE_SIZE * 0.2));
         }
 
         if (buildMode == BuildMode.MOVE_AUDITOR) {
@@ -624,16 +625,47 @@ public class BoardCanvas extends StackPane {
     private void drawAuditor(GraphicsContext gc) {
         Regulator auditor = gameMap.getAuditor();
         if (auditor != null) {
-            int x = auditor.getCol() * SQUARE_SIZE + PADDING + SQUARE_SIZE / 2;
-            int y = auditor.getRow() * SQUARE_SIZE + PADDING + SQUARE_SIZE / 2;
+            int col = auditor.getCol();
+            int row = auditor.getRow();
 
+            double x = col * SQUARE_SIZE + PADDING;
+            double y = row * SQUARE_SIZE + PADDING;
+
+            // 🚨 ۱. رسم کادر عجیب و خفن دور سکتور (خط ضخیم قرمز پلیسی)
+            gc.setStroke(Color.web("#B22222"));
+            gc.setLineWidth(4);
+            gc.strokeRect(x + 2, y + 2, SQUARE_SIZE - 4, SQUARE_SIZE - 4);
+
+            // 🚧 ۲. رسم خط چین دوم زرد/نارنجی داخلی برای القای حس نوار خطر (Crime Scene)
+            gc.setStroke(Color.ORANGE);
+            gc.setLineWidth(1.5);
+            gc.setLineDashes(4, 4);
+            gc.strokeRect(x + 5, y + 5, SQUARE_SIZE - 10, SQUARE_SIZE - 10);
+            gc.setLineDashes(); // ریست کردن خط‌چین برای بقیه متدها
+
+            // 🕵️‍♂️ ۳. محاسبه موقعیت کلاه کارآگاه در گوشه بالا-راست سکتور (برای عدم تداخل با عدد مرکز)
+            double iconX = x + SQUARE_SIZE - (SQUARE_SIZE * 0.22);
+            double iconY = y + (SQUARE_SIZE * 0.22);
+
+            // اندازه داینامیک اجزای کلاه متناسب با سایز مپ
+            double baseWidth = SQUARE_SIZE * 0.26;
+            double crownWidth = baseWidth * 0.65;
+
+            // الف) سایه کلاه برای جذابیت بصری سه‌بعدی
+            gc.setFill(Color.rgb(0, 0, 0, 0.25));
+            gc.fillRect(iconX - (baseWidth / 2.0), iconY + 1, baseWidth, 3);
+            gc.fillRoundRect(iconX - (crownWidth / 2.0), iconY - 10, crownWidth, 11, 4, 4);
+
+            // ب) لبه‌ی کلاه کارگاهی (تیره کاربنی)
+            gc.setFill(Color.web("#2F4F4F"));
+            gc.fillRect(iconX - (baseWidth / 2.0), iconY, baseWidth, 3);
+
+            // ج) بدنه اصلی کلاه (Crown)
+            gc.fillRoundRect(iconX - (crownWidth / 2.0), iconY - 11, crownWidth, 12, 5, 5);
+
+            // د) روبان قرمز روی کلاه کارآگاه
             gc.setFill(Color.RED);
-            gc.setFont(Font.font("Arial", FontWeight.BOLD, 16));
-            gc.fillText("A", x - 5, y + 6);
-
-            gc.setStroke(Color.RED);
-            gc.setLineWidth(3);
-            gc.strokeOval(x - 15, y - 15, 30, 30);
+            gc.fillRect(iconX - (crownWidth / 2.0), iconY, crownWidth, 1.5);
         }
     }
 
