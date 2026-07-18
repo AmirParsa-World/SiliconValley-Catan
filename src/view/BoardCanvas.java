@@ -24,7 +24,7 @@ public class BoardCanvas extends StackPane {
     private final model.Map gameMap;
     private final MainApp app;
     private final Canvas canvas;
-    private final int SQUARE_SIZE = 100;
+    private final int SQUARE_SIZE;
     private final int PADDING = 50;
 
     private BuildMode buildMode = BuildMode.NONE;
@@ -43,7 +43,21 @@ public class BoardCanvas extends StackPane {
     public BoardCanvas(model.Map gameMap, MainApp app) {
         this.gameMap = gameMap;
         this.app = app;
-        this.canvas = new Canvas(650, 650);
+
+        int sectorRows = gameMap.getSectors().length;
+        int sectorCols = gameMap.getSectors()[0].length;
+
+        // 🔮 فرمول هوشمند: هر چقدر نقشه بزرگ‌تر باشد، ابعاد مربع‌ها کوچک‌تر می‌شود تا مپ فیتِ صفحه بماند
+        if (sectorRows <= 5) {
+            this.SQUARE_SIZE = 100;
+        } else {
+            this.SQUARE_SIZE = 500 / sectorRows;
+        }
+
+        double canvasWidth = sectorCols * SQUARE_SIZE + (PADDING * 2.0);
+        double canvasHeight = sectorRows * SQUARE_SIZE + (PADDING * 2.0);
+
+        this.canvas = new Canvas(canvasWidth, canvasHeight);
         this.getChildren().add(canvas);
 
         canvas.setOnMouseClicked(this::handleClick);
@@ -243,8 +257,11 @@ public class BoardCanvas extends StackPane {
     }
 
     private Vertex findVertexAt(double x, double y) {
-        for (int row = 0; row < 6; row++) {
-            for (int col = 0; col < 6; col++) {
+        int vertexRows = gameMap.getVertices().length;
+        int vertexCols = gameMap.getVertices()[0].length;
+
+        for (int row = 0; row < vertexRows; row++) {
+            for (int col = 0; col < vertexCols; col++) {
                 Vertex vertex = gameMap.getVertices()[row][col];
                 double vX = getVertexX(vertex);
                 double vY = getVertexY(vertex);
@@ -258,8 +275,11 @@ public class BoardCanvas extends StackPane {
     }
 
     private Edge findEdgeAt(double x, double y) {
-        for (int row = 0; row < 6; row++) {
-            for (int col = 0; col < 6; col++) {
+        int vertexRows = gameMap.getVertices().length;
+        int vertexCols = gameMap.getVertices()[0].length;
+
+        for (int row = 0; row < vertexRows; row++) {
+            for (int col = 0; col < vertexCols; col++) {
                 Vertex vertex = gameMap.getVertices()[row][col];
                 for (Edge edge : vertex.getNeighboringEdges()) {
                     double uX = getVertexX(edge.getU());
@@ -349,10 +369,13 @@ public class BoardCanvas extends StackPane {
     }
 
     private void handleMoveAuditor(double mouseX, double mouseY) {
+        int sectorRows = gameMap.getSectors().length;
+        int sectorCols = gameMap.getSectors()[0].length;
+
         int col = (int) ((mouseX - PADDING) / SQUARE_SIZE);
         int row = (int) ((mouseY - PADDING) / SQUARE_SIZE);
 
-        if (row < 0 || row >= 5 || col < 0 || col >= 5) return;
+        if (row < 0 || row >= sectorRows || col < 0 || col >= sectorCols) return;
 
         try {
             Player current = app.getEngine().getCurrentPlayer();
@@ -451,8 +474,11 @@ public class BoardCanvas extends StackPane {
     }
 
     private void drawSectors(GraphicsContext gc) {
-        for (int row = 0; row < 5; row++) {
-            for (int col = 0; col < 5; col++) {
+        int sectorRows = gameMap.getSectors().length;
+        int sectorCols = gameMap.getSectors()[0].length;
+
+        for (int row = 0; row < sectorRows; row++) {
+            for (int col = 0; col < sectorCols; col++) {
                 Sector sector = gameMap.getSectors()[row][col];
                 if (sector != null) {
                     drawSquareSector(gc, row, col, sector);
@@ -504,8 +530,11 @@ public class BoardCanvas extends StackPane {
 
     private void drawEdges(GraphicsContext gc) {
         Set<Edge> drawn = new HashSet<>();
-        for (int row = 0; row < 6; row++) {
-            for (int col = 0; col < 6; col++) {
+        int vertexRows = gameMap.getVertices().length;
+        int vertexCols = gameMap.getVertices()[0].length;
+
+        for (int row = 0; row < vertexRows; row++) {
+            for (int col = 0; col < vertexCols; col++) {
                 Vertex vertex = gameMap.getVertices()[row][col];
                 for (Edge edge : vertex.getNeighboringEdges()) {
                     if (drawn.add(edge)) {
@@ -543,8 +572,11 @@ public class BoardCanvas extends StackPane {
     }
 
     private void drawVertices(GraphicsContext gc) {
-        for (int row = 0; row < 6; row++) {
-            for (int col = 0; col < 6; col++) {
+        int vertexRows = gameMap.getVertices().length;
+        int vertexCols = gameMap.getVertices()[0].length;
+
+        for (int row = 0; row < vertexRows; row++) {
+            for (int col = 0; col < vertexCols; col++) {
                 Vertex vertex = gameMap.getVertices()[row][col];
                 drawVertex(gc, vertex, row, col);
             }
@@ -600,8 +632,11 @@ public class BoardCanvas extends StackPane {
     }
 
     private double getVertexX(Vertex vertex) {
-        for (int row = 0; row < 6; row++) {
-            for (int col = 0; col < 6; col++) {
+        int vertexRows = gameMap.getVertices().length;
+        int vertexCols = gameMap.getVertices()[0].length;
+
+        for (int row = 0; row < vertexRows; row++) {
+            for (int col = 0; col < vertexCols; col++) {
                 if (gameMap.getVertices()[row][col] == vertex) {
                     return col * SQUARE_SIZE + PADDING;
                 }
@@ -611,8 +646,11 @@ public class BoardCanvas extends StackPane {
     }
 
     private double getVertexY(Vertex vertex) {
-        for (int row = 0; row < 6; row++) {
-            for (int col = 0; col < 6; col++) {
+        int vertexRows = gameMap.getVertices().length;
+        int vertexCols = gameMap.getVertices()[0].length;
+
+        for (int row = 0; row < vertexRows; row++) {
+            for (int col = 0; col < vertexCols; col++) {
                 if (gameMap.getVertices()[row][col] == vertex) {
                     return row * SQUARE_SIZE + PADDING;
                 }

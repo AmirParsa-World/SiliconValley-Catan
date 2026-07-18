@@ -88,14 +88,41 @@ public class MainApp extends Application {
             playerCount = 2;
         }
 
+        javafx.scene.control.TextInputDialog sizeDialog = new javafx.scene.control.TextInputDialog("5");
+        sizeDialog.setTitle("Custom Map Size");
+        sizeDialog.setHeaderText("Enter Tech Park Dimensions (2 to 10)\nSizes above 10 are disabled for balance.");
+        sizeDialog.setContentText("Grid Size:");
+
+        Optional<String> result = sizeDialog.showAndWait();
+        int mapSize = 5;
+
+        if (result.isPresent()) {
+            try {
+                mapSize = Integer.parseInt(result.get());
+                // 🔒 اعمال قفل سخت‌گیرانه بین ۲ تا ۱۰
+                if (mapSize > 10) {
+                    mapSize = 10;
+                    Platform.runLater(() -> {
+                        Alert capAlert = new Alert(Alert.AlertType.WARNING, "Map size capped at 10x10 for optimal gameplay and screen fitting! 🖥️");
+                        capAlert.show();
+                    });
+                } else if (mapSize < 2) {
+                    mapSize = 2;
+                }
+            } catch (NumberFormatException e) {
+                mapSize = 5;
+            }
+        }
+
         boolean[] isBotArray = askPlayerTypes(playerCount);
-        initializeGame(playerCount, isBotArray);
+        initializeGame(playerCount, isBotArray, mapSize);
         buildUIComponents();
 
         PauseTransition startupDelay = new PauseTransition(Duration.seconds(0.3));
         startupDelay.setOnFinished(e -> checkAndRunBotTurn());
         startupDelay.play();
     }
+
 
     // 📂 جریان بارگذاری بازی ذخیره شده از هارد
     private void loadSavedGame(Stage stage) {
@@ -196,8 +223,9 @@ public class MainApp extends Application {
         return isBot;
     }
 
-    private void initializeGame(int playerCount, boolean[] isBotArray) {
-        gameMap = new Map();
+    private void initializeGame(int playerCount, boolean[] isBotArray, int mapSize) {
+        // 🎯 ساخت مپ با ابعاد کاملاً داینامیک و سفارشی ورودی
+        gameMap = new Map(mapSize, mapSize);
         market = new Market();
 
         String[] colors = {"Red", "Blue", "Green", "Yellow"};
@@ -213,7 +241,6 @@ public class MainApp extends Application {
 
         engine = new GameEngine(players, market, gameMap);
     }
-
     public void handleDiscardFlow(java.util.Map<Player, Integer> discardMap, Runnable onDone) {
         // 🎯 اصلاح باگ: اگر کسی نیاز به سوزاندن کارت نداشت، بازی نباید مستقیم ادامه پیدا کند؛ بلکه باید ابتدا بازرس حرکت داده شود.
         if (discardMap == null || discardMap.isEmpty()) {
@@ -266,11 +293,14 @@ public class MainApp extends Application {
 
     private void autoMoveAuditor(SimpleBot bot) {
         model.Sector[][] sectors = gameMap.getSectors();
+        int sectorRows = sectors.length;
+        int sectorCols = sectors[0].length;
         java.util.List<int[]> validTargets = new java.util.ArrayList<>();
 
         boolean anyHasStructures = false;
-        for (int r = 0; r < 5; r++) {
-            for (int c = 0; c < 5; c++) {
+        // 🔄 پیمایش داینامیک سطرها و ستون‌های سکتورها به جای عدد ثابت 5
+        for (int r = 0; r < sectorRows; r++) {
+            for (int c = 0; c < sectorCols; c++) {
                 model.Sector s = sectors[r][c];
                 if (s != null && !s.isBlocked() && hasPlayersOnSector(s)) {
                     validTargets.add(new int[]{r, c});
@@ -280,8 +310,8 @@ public class MainApp extends Application {
         }
 
         if (!anyHasStructures) {
-            for (int r = 0; r < 5; r++) {
-                for (int c = 0; c < 5; c++) {
+            for (int r = 0; r < sectorRows; r++) {
+                for (int c = 0; c < sectorCols; c++) {
                     if (sectors[r][c] != null && !sectors[r][c].isBlocked()) {
                         validTargets.add(new int[]{r, c});
                     }
