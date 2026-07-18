@@ -7,7 +7,7 @@ import model.*;
 import java.util.ArrayList;
 import java.util.List;
 
-public class BotTestRunner {
+public class  BotTestRunner {
     private static int passed = 0;
     private static int failed = 0;
 

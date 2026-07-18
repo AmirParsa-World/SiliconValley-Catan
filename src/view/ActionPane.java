@@ -4,9 +4,10 @@ import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.control.TextInputDialog;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import model.*;
@@ -25,6 +26,8 @@ public class ActionPane extends VBox {
     private Button upgradeUnicornBtn;
     private Button buildPartnershipBtn;
     private Button endTurnBtn;
+    private Button saveGameBtn;
+    private Button loadGameBtn;
 
     public ActionPane(GameEngine engine, model.Map gameMap, MainApp app) {
         this.engine = engine;
@@ -65,7 +68,21 @@ public class ActionPane extends VBox {
         endTurnBtn = createButton("End Turn");
         endTurnBtn.setOnAction(e -> endTurn());
 
-        this.getChildren().addAll(title, phaseLabel, statusLabel, startSetupBtn, rollDiceBtn, buildMVPBtn, upgradeUnicornBtn, buildPartnershipBtn, endTurnBtn);
+        saveGameBtn = createButton("Save Game 💾");
+        saveGameBtn.setOnAction(e -> app.triggerManualSave());
+        saveGameBtn.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white;");
+
+        loadGameBtn = createButton("Load Game 📂");
+        loadGameBtn.setOnAction(e -> app.triggerManualLoad());
+        loadGameBtn.setStyle("-fx-background-color: #9C27B0; -fx-text-fill: white;");
+
+        // 🎨 ساخت کارت راهنمای هوشمند و شیک سکتورها
+        VBox legendBox = createLegendBox();
+
+        // 🏁 چینش نهایی: کامپوننت راهنما دقیقاً در انتهای پنل اضافه شد
+        this.getChildren().addAll(title, phaseLabel, statusLabel, startSetupBtn, rollDiceBtn,
+                buildMVPBtn, upgradeUnicornBtn, buildPartnershipBtn, endTurnBtn, saveGameBtn, loadGameBtn, legendBox);
+
         update();
     }
 
@@ -74,6 +91,48 @@ public class ActionPane extends VBox {
         btn.setPrefWidth(180);
         btn.setFont(Font.font("Arial", FontWeight.NORMAL, 13));
         return btn;
+    }
+
+    // 🔮 متد کمکی برای خلق کارت راهنمای رنگ‌ها با یوآی کاملاً مدرن و خوانا
+    private VBox createLegendBox() {
+        VBox box = new VBox(6);
+        box.setStyle("-fx-padding: 10; -fx-background-color: #ffffff; -fx-background-radius: 6; -fx-border-color: #ddd; -fx-border-radius: 6; -fx-margin-top: 10;");
+
+        Label titleLabel = new Label("⚡ Tech Sectors:");
+        titleLabel.setFont(Font.font("Arial", FontWeight.BOLD, 12));
+        titleLabel.setStyle("-fx-text-fill: #333;");
+        box.getChildren().add(titleLabel);
+
+        // داده‌های سکتورها: {نام، کد رنگ هگز}
+        String[][] sectorsInfo = {
+                {"Talent (AI Hub)", "#90EE90"},
+                {"Capital (Fintech)", "#FFD700"},
+                {"Cloud (Campus)", "#87CEEB"},
+                {"Patent (IP Quarter)", "#D3D3D3"},
+                {"Data (Valley)", "#FFB6C1"},
+                {"Regulatory Zone", "#FFA07A"}
+        };
+
+        for (String[] info : sectorsInfo) {
+            HBox row = new HBox(8);
+            row.setStyle("-fx-alignment: center-left;");
+
+            // ساخت یک مربع رنگی کوچک و شیک به عنوان اندیکاتور رنگی
+            Rectangle colorIndicator = new Rectangle(12, 12);
+            colorIndicator.setArcWidth(4);
+            colorIndicator.setArcHeight(4);
+            colorIndicator.setFill(Color.web(info[1]));
+            colorIndicator.setStroke(Color.web("#555555"));
+            colorIndicator.setStrokeWidth(1);
+            Label nameLabel = new Label(info[0]);
+            nameLabel.setFont(Font.font("Arial", FontWeight.SEMI_BOLD, 11));
+            nameLabel.setStyle("-fx-text-fill: #444;");
+
+            row.getChildren().addAll(colorIndicator, nameLabel);
+            box.getChildren().add(row);
+        }
+
+        return box;
     }
 
     public void update() {
@@ -92,9 +151,12 @@ public class ActionPane extends VBox {
             phaseLabel.setTextFill(Color.RED);
         }
 
-        String botTag = isBot ? " [BOT]" : "";
-        statusLabel.setText("Current Player:\n" + current.getName() + botTag);
-        statusLabel.setTextFill(getPlayerColor(current));
+        boolean boardIsBusy = app.getBoardCanvas() != null && app.getBoardCanvas().isBuildMode();
+        if (!boardIsBusy && !statusLabel.getText().startsWith("Error:")) {
+            String botTag = isBot ? " [BOT]" : "";
+            statusLabel.setText("Current Player:\n" + current.getName() + botTag);
+            statusLabel.setTextFill(getPlayerColor(current));
+        }
 
         boolean isSetup = (phase == GamePhase.SETUP);
         boolean inSetupMode = app.getBoardCanvas().isSetupMode();
@@ -115,11 +177,13 @@ public class ActionPane extends VBox {
         endTurnBtn.setManaged(isNormal && !isBot);
 
         if (isNormal && !isBot) {
-            rollDiceBtn.setDisable(engine.hasRolledThisTurn());
-            buildMVPBtn.setDisable(!engine.hasRolledThisTurn());
-            upgradeUnicornBtn.setDisable(!engine.hasRolledThisTurn());
-            buildPartnershipBtn.setDisable(!engine.hasRolledThisTurn());
-            endTurnBtn.setDisable(!engine.hasRolledThisTurn());
+            boolean auditorIsMoving = app.getBoardCanvas().isAuditorMovePending();
+
+            rollDiceBtn.setDisable(engine.hasRolledThisTurn() || auditorIsMoving);
+            buildMVPBtn.setDisable(!engine.hasRolledThisTurn() || auditorIsMoving);
+            upgradeUnicornBtn.setDisable(!engine.hasRolledThisTurn() || auditorIsMoving);
+            buildPartnershipBtn.setDisable(!engine.hasRolledThisTurn() || auditorIsMoving);
+            endTurnBtn.setDisable(!engine.hasRolledThisTurn() || auditorIsMoving);
         }
     }
 
@@ -148,10 +212,12 @@ public class ActionPane extends VBox {
             engine.updateLongestNetworkAward();
             app.updateUI();
 
-            // Handle discard flow if roll was 7
-            app.handleDiscardFlow(discardMap, () -> {
-                app.updateUI();
-            });
+            if (total == 7) {
+                app.handleDiscardFlow(discardMap, () -> {
+                    app.updateUI();
+                });
+            }
+
         } catch (Exception e) {
             statusLabel.setText("Error: " + e.getMessage());
         }
@@ -159,17 +225,17 @@ public class ActionPane extends VBox {
 
     private void buildMVP() {
         app.getBoardCanvas().enterBuildMVPMode();
-        statusLabel.setText("Click a vertex\nto place your MVP");
+        app.updateUI();
     }
 
     private void upgradeToUnicorn() {
         app.getBoardCanvas().enterUpgradeUnicornMode();
-        statusLabel.setText("Click your MVP\nto upgrade to Unicorn");
+        app.updateUI();
     }
 
     private void buildPartnership() {
         app.getBoardCanvas().enterBuildPartnershipMode();
-        statusLabel.setText("Click an edge\nto place your partnership");
+        app.updateUI();
     }
 
     private void endTurn() {

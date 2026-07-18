@@ -24,7 +24,8 @@ public class BoardCanvas extends StackPane {
     private final model.Map gameMap;
     private final MainApp app;
     private final Canvas canvas;
-    private final int SQUARE_SIZE = 100;
+    private final int SQUARE_SIZE;
+    private final int VERTEX_SIZE;
     private final int PADDING = 50;
 
     private BuildMode buildMode = BuildMode.NONE;
@@ -43,7 +44,31 @@ public class BoardCanvas extends StackPane {
     public BoardCanvas(model.Map gameMap, MainApp app) {
         this.gameMap = gameMap;
         this.app = app;
-        this.canvas = new Canvas(650, 650);
+
+        int sectorRows = gameMap.getSectors().length;
+        int sectorCols = gameMap.getSectors()[0].length;
+
+        // 🔮 محاسبه دوطرفه ابعاد خانه‌ها و گره‌ها برای فیت شدن بی‌نقص در صفحه
+        if (sectorRows <= 3) {
+            this.SQUARE_SIZE = 140;
+            this.VERTEX_SIZE = 28;
+        } else if (sectorRows == 4) {
+            this.SQUARE_SIZE = 120;
+            this.VERTEX_SIZE = 26;
+        } else if (sectorRows == 5) {
+            this.SQUARE_SIZE = 100;
+            this.VERTEX_SIZE = 24;
+        } else {
+            // برای مپ‌های ۶ تا ۱۰، کل عرض نقشه را روی ۵۰۰ پیکسل فیکس نگه می‌دارد
+            this.SQUARE_SIZE = 500 / sectorRows;
+            // گره‌ها هم متناسب با ابعاد سکتور ریزتر می‌شوند تا فضا شلوغ نشود
+            this.VERTEX_SIZE = Math.max(12, 120 / sectorRows);
+        }
+
+        double canvasWidth = sectorCols * SQUARE_SIZE + (PADDING * 2.0);
+        double canvasHeight = sectorRows * SQUARE_SIZE + (PADDING * 2.0);
+
+        this.canvas = new Canvas(canvasWidth, canvasHeight);
         this.getChildren().add(canvas);
 
         canvas.setOnMouseClicked(this::handleClick);
@@ -107,58 +132,147 @@ public class BoardCanvas extends StackPane {
 
     private void handleBuildMVP(double mouseX, double mouseY) {
         Vertex clickedVertex = findVertexAt(mouseX, mouseY);
-        if (clickedVertex != null && !clickedVertex.hasStructure()
-            && app.getEngine().isValidStructurePlacement(clickedVertex)) {
-            try {
-                Player current = app.getEngine().getCurrentPlayer();
-                app.getEngine().buildMVP(current, clickedVertex);
-                app.getEngine().updateLongestNetworkAward();
-                buildMode = BuildMode.NONE;
-                app.getActionPane().updateStatus("MVP built!");
-                app.updateUI();
-            } catch (Exception e) {
-                app.getActionPane().updateStatus("Error: " + e.getMessage());
+        if (clickedVertex == null) return;
+        Player current = app.getEngine().getCurrentPlayer();
+
+        // ❌ حالت اول: بررسی قانون فاصله (ساخت روی یا کنار یک سازه دیگر) از طریق جاده‌های همسایه
+        for (Edge edge : clickedVertex.getNeighboringEdges()) {
+            if (edge != null) {
+                // پیدا کردن رأس همسایه از روی جاده
+                Vertex neighbor = (edge.getU() == clickedVertex) ? edge.getV() : edge.getU();
+
+                if (neighbor != null && neighbor.hasStructure()) {
+                    app.getActionPane().updateStatus("Error: Too close! 🛑\nDistance rule violated. Cannot build adjacent to another structure.");
+                    buildMode = BuildMode.NONE;
+                    app.updateUI();
+                    return;
+                }
             }
+        }
+
+        // ❌ حالت دوم: بررسی اتصال به جاده‌ها (جای نادرست و دور)
+        boolean isConnectedToRoad = false;
+        for (Edge edge : clickedVertex.getNeighboringEdges()) {
+            if (edge != null && current.equals(edge.getOwner())) {
+                isConnectedToRoad = true;
+                break;
+            }
+        }
+        if (!isConnectedToRoad) {
+            app.getActionPane().updateStatus("Error: Too far! 🗺️\nYou must build your MVP connected to at least one of your Partnerships (Roads).");
+            buildMode = BuildMode.NONE;
+            app.updateUI();
+            return;
+        }
+
+        // 💰 حالت سوم و چهارم: ارسال به موتور بازی جهت بررسی منابع مالی
+        try {
+            app.getEngine().buildMVP(current, clickedVertex);
+            app.getEngine().updateLongestNetworkAward();
+            buildMode = BuildMode.NONE;
+            app.getActionPane().updateStatus("MVP built successfully! 🎉");
+            app.updateUI();
+        } catch (Exception e) {
+            buildMode = BuildMode.NONE;
+            app.getActionPane().updateStatus("Error: Insufficient resources! 💸\n" + e.getMessage());
+            app.updateUI();
         }
     }
 
+    // ۲. مدیریت دقیق خطاهای ساخت جاده (Partnership)
     private void handleBuildPartnership(double mouseX, double mouseY) {
         Edge clickedEdge = findEdgeAt(mouseX, mouseY);
-        if (clickedEdge != null && clickedEdge.getOwner() == null) {
-            try {
-                Player current = app.getEngine().getCurrentPlayer();
-                app.getEngine().buildPartnership(current, clickedEdge);
-                app.getEngine().updateLongestNetworkAward();
-                buildMode = BuildMode.NONE;
-                app.getActionPane().updateStatus("Partnership built!");
-                app.updateUI();
-            } catch (Exception e) {
-                app.getActionPane().updateStatus("Error: " + e.getMessage());
-            }
+        if (clickedEdge == null) return;
+        Player current = app.getEngine().getCurrentPlayer();
+
+        // ❌ حالت اول: جاده قبلاً گرفته شده
+        if (clickedEdge.getOwner() != null) {
+            app.getActionPane().updateStatus("Error: Invalid Edge! 🛑\nThis partnership path is already owned by " + clickedEdge.getOwner().getName());
+            buildMode = BuildMode.NONE;
+            app.updateUI();
+            return;
+        }
+
+        // ❌ حالت دوم: بررسی اتصال جاده به سازه‌ها یا جاده‌های دیگر بازیکن - جای نادرست و دور
+        boolean isConnected = false;
+        Vertex u = clickedEdge.getU();
+        Vertex v = clickedEdge.getV();
+
+        if ((u.hasStructure() && current.equals(u.getOwner())) || (v.hasStructure() && current.equals(v.getOwner()))) {
+            isConnected = true;
+        }
+        for (Edge edge : u.getNeighboringEdges()) {
+            if (edge != clickedEdge && current.equals(edge.getOwner())) isConnected = true;
+        }
+        for (Edge edge : v.getNeighboringEdges()) {
+            if (edge != clickedEdge && current.equals(edge.getOwner())) isConnected = true;
+        }
+
+        if (!isConnected) {
+            app.getActionPane().updateStatus("Error: Unconnected Path! 🗺️\nPartnerships must connect to your existing roads or structures.");
+            buildMode = BuildMode.NONE;
+            app.updateUI();
+            return;
+        }
+
+        // 💰 حالت سوم و چهارم: بررسی منابع در بک‌اَند
+        try {
+            app.getEngine().buildPartnership(current, clickedEdge);
+            app.getEngine().updateLongestNetworkAward();
+            buildMode = BuildMode.NONE;
+            app.getActionPane().updateStatus("Partnership built successfully! 🛣️");
+            app.updateUI();
+        } catch (Exception e) {
+            buildMode = BuildMode.NONE;
+            app.getActionPane().updateStatus("Error: Insufficient resources for Road! 💸\n" + e.getMessage());
+            app.updateUI();
         }
     }
 
+    // ۳. مدیریت دقیق خطاهای ارتقا به تک‌شاخ (Unicorn)
     private void handleUpgradeUnicorn(double mouseX, double mouseY) {
         Vertex clickedVertex = findVertexAt(mouseX, mouseY);
-        if (clickedVertex != null && clickedVertex.hasStructure()
-            && clickedVertex.getStructure() instanceof MVP
-            && clickedVertex.getOwner().equals(app.getEngine().getCurrentPlayer())) {
-            try {
-                Player current = app.getEngine().getCurrentPlayer();
-                app.getEngine().upgradeToUnicorn(current, clickedVertex);
-                app.getEngine().updateLongestNetworkAward();
-                buildMode = BuildMode.NONE;
-                app.getActionPane().updateStatus("Upgraded to Unicorn!");
-                app.updateUI();
-            } catch (Exception e) {
-                app.getActionPane().updateStatus("Error: " + e.getMessage());
-            }
+        if (clickedVertex == null) return;
+        Player current = app.getEngine().getCurrentPlayer();
+
+        // ❌ حالت اول: کلیک روی جای خالی یا سازه دیگران یا تک‌شاخ قبلی - جای نادرست
+        boolean hasStructure = clickedVertex.hasStructure();
+        boolean isMVP = hasStructure && clickedVertex.getStructure() instanceof MVP;
+        boolean isOwner = hasStructure && current.equals(clickedVertex.getOwner());
+
+        if (!hasStructure || !isOwner) {
+            app.getActionPane().updateStatus("Error: Invalid Target! 🦄\nYou can only upgrade a structure that belongs to you!");
+            buildMode = BuildMode.NONE;
+            app.updateUI();
+            return;
+        }
+        if (!isMVP) {
+            app.getActionPane().updateStatus("Error: Already Upgraded! 🛑\nThis structure is already a Unicorn or is not an MVP.");
+            buildMode = BuildMode.NONE;
+            app.updateUI();
+            return;
+        }
+
+        // 💰 حالت سوم و چهارم: بررسی منابع ارتقا در بک‌اَند
+        try {
+            app.getEngine().upgradeToUnicorn(current, clickedVertex);
+            app.getEngine().updateLongestNetworkAward();
+            buildMode = BuildMode.NONE;
+            app.getActionPane().updateStatus("Upgraded to Unicorn successfully! 🦄✨");
+            app.updateUI();
+        } catch (Exception e) {
+            buildMode = BuildMode.NONE;
+            app.getActionPane().updateStatus("Error: Insufficient assets for Unicorn! 💸\n" + e.getMessage());
+            app.updateUI();
         }
     }
 
     private Vertex findVertexAt(double x, double y) {
-        for (int row = 0; row < 6; row++) {
-            for (int col = 0; col < 6; col++) {
+        int vertexRows = gameMap.getVertices().length;
+        int vertexCols = gameMap.getVertices()[0].length;
+
+        for (int row = 0; row < vertexRows; row++) {
+            for (int col = 0; col < vertexCols; col++) {
                 Vertex vertex = gameMap.getVertices()[row][col];
                 double vX = getVertexX(vertex);
                 double vY = getVertexY(vertex);
@@ -172,8 +286,11 @@ public class BoardCanvas extends StackPane {
     }
 
     private Edge findEdgeAt(double x, double y) {
-        for (int row = 0; row < 6; row++) {
-            for (int col = 0; col < 6; col++) {
+        int vertexRows = gameMap.getVertices().length;
+        int vertexCols = gameMap.getVertices()[0].length;
+
+        for (int row = 0; row < vertexRows; row++) {
+            for (int col = 0; col < vertexCols; col++) {
                 Vertex vertex = gameMap.getVertices()[row][col];
                 for (Edge edge : vertex.getNeighboringEdges()) {
                     double uX = getVertexX(edge.getU());
@@ -263,10 +380,13 @@ public class BoardCanvas extends StackPane {
     }
 
     private void handleMoveAuditor(double mouseX, double mouseY) {
+        int sectorRows = gameMap.getSectors().length;
+        int sectorCols = gameMap.getSectors()[0].length;
+
         int col = (int) ((mouseX - PADDING) / SQUARE_SIZE);
         int row = (int) ((mouseY - PADDING) / SQUARE_SIZE);
 
-        if (row < 0 || row >= 5 || col < 0 || col >= 5) return;
+        if (row < 0 || row >= sectorRows || col < 0 || col >= sectorCols) return;
 
         try {
             Player current = app.getEngine().getCurrentPlayer();
@@ -365,8 +485,11 @@ public class BoardCanvas extends StackPane {
     }
 
     private void drawSectors(GraphicsContext gc) {
-        for (int row = 0; row < 5; row++) {
-            for (int col = 0; col < 5; col++) {
+        int sectorRows = gameMap.getSectors().length;
+        int sectorCols = gameMap.getSectors()[0].length;
+
+        for (int row = 0; row < sectorRows; row++) {
+            for (int col = 0; col < sectorCols; col++) {
                 Sector sector = gameMap.getSectors()[row][col];
                 if (sector != null) {
                     drawSquareSector(gc, row, col, sector);
@@ -386,33 +509,41 @@ public class BoardCanvas extends StackPane {
         gc.fillRect(x, y, SQUARE_SIZE, SQUARE_SIZE);
 
         gc.setStroke(Color.BLACK);
-        gc.setLineWidth(2);
+        gc.setLineWidth(1.5);
         gc.strokeRect(x, y, SQUARE_SIZE, SQUARE_SIZE);
 
+        // 🎯 عدد تاس دقیقاً در مرکز کاشی بدون هیچ مزاحمی
+        double fontSize = SQUARE_SIZE * 0.25;
+        gc.setFont(Font.font("Arial", FontWeight.BOLD, fontSize));
         gc.setFill(Color.BLACK);
-        gc.setFont(Font.font("Arial", FontWeight.BOLD, 11));
-        String resourceName = sector.getResourceType().getDisplayName();
-        double textWidth = resourceName.length() * 6.5;
-        gc.fillText(resourceName, x + (SQUARE_SIZE - textWidth) / 2, y + SQUARE_SIZE / 2 - 8);
 
-        gc.setFont(Font.font("Arial", FontWeight.BOLD, 18));
         String numStr = String.valueOf(sector.getActivationNumber());
-        textWidth = numStr.length() * 11;
-        gc.fillText(numStr, x + (SQUARE_SIZE - textWidth) / 2, y + SQUARE_SIZE / 2 + 15);
+        gc.fillText(numStr, x + (SQUARE_SIZE / 2.0) - (fontSize * 0.3 * numStr.length()), y + (SQUARE_SIZE / 2.0) + (fontSize * 0.3));
 
+        // ⚠️ به جای پوشاندن کل صفحه، یک اورلی بسیار ملایم و یک تگ شیک در گوشه بالا-چپ می‌زنیم
         if (sector.isBlocked()) {
-            gc.setFill(Color.rgb(255, 0, 0, 0.4));
+            gc.setFill(Color.rgb(255, 0, 0, 0.12)); // هاله قرمز بسیار ملایم
             gc.fillRect(x, y, SQUARE_SIZE, SQUARE_SIZE);
-            gc.setFill(Color.RED);
-            gc.setFont(Font.font("Arial", FontWeight.BOLD, 12));
-            gc.fillText("BLOCKED", x + 15, y + SQUARE_SIZE / 2 + 4);
+
+            gc.setFill(Color.web("#B22222")); // قرمز تیره پخته
+            gc.setFont(Font.font("Arial", FontWeight.BOLD, Math.max(8, SQUARE_SIZE * 0.12)));
+            gc.fillText("⚠️ LOCKED", x + 6, y + (SQUARE_SIZE * 0.2));
+        }
+
+        if (buildMode == BuildMode.MOVE_AUDITOR) {
+            gc.setStroke(Color.CYAN);
+            gc.setLineWidth(2.5);
+            gc.strokeRect(x + 2, y + 2, SQUARE_SIZE - 4, SQUARE_SIZE - 4);
         }
     }
 
     private void drawEdges(GraphicsContext gc) {
         Set<Edge> drawn = new HashSet<>();
-        for (int row = 0; row < 6; row++) {
-            for (int col = 0; col < 6; col++) {
+        int vertexRows = gameMap.getVertices().length;
+        int vertexCols = gameMap.getVertices()[0].length;
+
+        for (int row = 0; row < vertexRows; row++) {
+            for (int col = 0; col < vertexCols; col++) {
                 Vertex vertex = gameMap.getVertices()[row][col];
                 for (Edge edge : vertex.getNeighboringEdges()) {
                     if (drawn.add(edge)) {
@@ -450,65 +581,100 @@ public class BoardCanvas extends StackPane {
     }
 
     private void drawVertices(GraphicsContext gc) {
-        for (int row = 0; row < 6; row++) {
-            for (int col = 0; col < 6; col++) {
+        int vertexRows = gameMap.getVertices().length;
+        int vertexCols = gameMap.getVertices()[0].length;
+
+        for (int row = 0; row < vertexRows; row++) {
+            for (int col = 0; col < vertexCols; col++) {
                 Vertex vertex = gameMap.getVertices()[row][col];
-                drawVertex(gc, vertex, row, col);
+                drawVertex(gc, vertex);
             }
         }
     }
 
-    private void drawVertex(GraphicsContext gc, Vertex vertex, int row, int col) {
+    private void drawVertex(GraphicsContext gc, Vertex vertex) {
         double x = getVertexX(vertex);
         double y = getVertexY(vertex);
-        int size = 24;
+        double size = VERTEX_SIZE;
 
         if (vertex.hasStructure()) {
             gc.setFill(getPlayerColor(vertex.getOwner()));
-            gc.fillOval(x - size / 2, y - size / 2, size, size);
+            gc.fillOval(x - size / 2.0, y - size / 2.0, size, size);
 
             gc.setStroke(Color.BLACK);
-            gc.setLineWidth(3);
-            gc.strokeOval(x - size / 2, y - size / 2, size, size);
+            gc.setLineWidth(size > 15 ? 3 : 1.5);
+            gc.strokeOval(x - size / 2.0, y - size / 2.0, size, size);
 
-            if (vertex.getStructure() instanceof Unicorn) {
-                gc.setFill(Color.GOLD);
-                gc.setFont(Font.font("Arial", FontWeight.BOLD, 14));
-                gc.fillText("U", x - 5, y + 5);
-            } else {
-                gc.setFill(Color.WHITE);
-                gc.setFont(Font.font("Arial", FontWeight.BOLD, 14));
-                gc.fillText("M", x - 5, y + 5);
-            }
-        } else {
             gc.setFill(Color.WHITE);
-            gc.fillOval(x - 10, y - 10, 20, 20);
+            // تنظیم داینامیک سایز فونت حروف M و U
+            gc.setFont(Font.font("Arial", FontWeight.BOLD, size * 0.6));
+            String label = (vertex.getStructure() instanceof Unicorn) ? "U" : "M";
+            gc.fillText(label, x - (size * 0.2), y + (size * 0.2));
+        } else {
+            // گره‌های خالی و کوچک نقشه
+            double emptySize = size * 0.75;
+            gc.setFill(Color.WHITE);
+            gc.fillOval(x - emptySize / 2.0, y - emptySize / 2.0, emptySize, emptySize);
 
             gc.setStroke(Color.web("#666666"));
-            gc.setLineWidth(2);
-            gc.strokeOval(x - 10, y - 10, 20, 20);
+            gc.setLineWidth(1.5);
+            gc.strokeOval(x - emptySize / 2.0, y - emptySize / 2.0, emptySize, emptySize);
         }
     }
 
     private void drawAuditor(GraphicsContext gc) {
         Regulator auditor = gameMap.getAuditor();
         if (auditor != null) {
-            int x = auditor.getCol() * SQUARE_SIZE + PADDING + SQUARE_SIZE / 2;
-            int y = auditor.getRow() * SQUARE_SIZE + PADDING + SQUARE_SIZE / 2;
+            int col = auditor.getCol();
+            int row = auditor.getRow();
 
+            double x = col * SQUARE_SIZE + PADDING;
+            double y = row * SQUARE_SIZE + PADDING;
+
+            // 🚨 ۱. رسم کادر عجیب و خفن دور سکتور (خط ضخیم قرمز پلیسی)
+            gc.setStroke(Color.web("#B22222"));
+            gc.setLineWidth(4);
+            gc.strokeRect(x + 2, y + 2, SQUARE_SIZE - 4, SQUARE_SIZE - 4);
+
+            // 🚧 ۲. رسم خط چین دوم زرد/نارنجی داخلی برای القای حس نوار خطر (Crime Scene)
+            gc.setStroke(Color.ORANGE);
+            gc.setLineWidth(1.5);
+            gc.setLineDashes(4, 4);
+            gc.strokeRect(x + 5, y + 5, SQUARE_SIZE - 10, SQUARE_SIZE - 10);
+            gc.setLineDashes(); // ریست کردن خط‌چین برای بقیه متدها
+
+            // 🕵️‍♂️ ۳. محاسبه موقعیت کلاه کارآگاه در گوشه بالا-راست سکتور (برای عدم تداخل با عدد مرکز)
+            double iconX = x + SQUARE_SIZE - (SQUARE_SIZE * 0.22);
+            double iconY = y + (SQUARE_SIZE * 0.22);
+
+            // اندازه داینامیک اجزای کلاه متناسب با سایز مپ
+            double baseWidth = SQUARE_SIZE * 0.26;
+            double crownWidth = baseWidth * 0.65;
+
+            // الف) سایه کلاه برای جذابیت بصری سه‌بعدی
+            gc.setFill(Color.rgb(0, 0, 0, 0.25));
+            gc.fillRect(iconX - (baseWidth / 2.0), iconY + 1, baseWidth, 3);
+            gc.fillRoundRect(iconX - (crownWidth / 2.0), iconY - 10, crownWidth, 11, 4, 4);
+
+            // ب) لبه‌ی کلاه کارگاهی (تیره کاربنی)
+            gc.setFill(Color.web("#2F4F4F"));
+            gc.fillRect(iconX - (baseWidth / 2.0), iconY, baseWidth, 3);
+
+            // ج) بدنه اصلی کلاه (Crown)
+            gc.fillRoundRect(iconX - (crownWidth / 2.0), iconY - 11, crownWidth, 12, 5, 5);
+
+            // د) روبان قرمز روی کلاه کارآگاه
             gc.setFill(Color.RED);
-            gc.setFont(Font.font("Arial", FontWeight.BOLD, 16));
-            gc.fillText("A", x - 5, y + 6);
-
-            gc.setStroke(Color.RED);
-            gc.setLineWidth(3);
-            gc.strokeOval(x - 15, y - 15, 30, 30);
+            gc.fillRect(iconX - (crownWidth / 2.0), iconY, crownWidth, 1.5);
         }
     }
 
     private double getVertexX(Vertex vertex) {
-        for (int row = 0; row < 6; row++) {
-            for (int col = 0; col < 6; col++) {
+        int vertexRows = gameMap.getVertices().length;
+        int vertexCols = gameMap.getVertices()[0].length;
+
+        for (int row = 0; row < vertexRows; row++) {
+            for (int col = 0; col < vertexCols; col++) {
                 if (gameMap.getVertices()[row][col] == vertex) {
                     return col * SQUARE_SIZE + PADDING;
                 }
@@ -518,8 +684,11 @@ public class BoardCanvas extends StackPane {
     }
 
     private double getVertexY(Vertex vertex) {
-        for (int row = 0; row < 6; row++) {
-            for (int col = 0; col < 6; col++) {
+        int vertexRows = gameMap.getVertices().length;
+        int vertexCols = gameMap.getVertices()[0].length;
+
+        for (int row = 0; row < vertexRows; row++) {
+            for (int col = 0; col < vertexCols; col++) {
                 if (gameMap.getVertices()[row][col] == vertex) {
                     return row * SQUARE_SIZE + PADDING;
                 }

@@ -24,15 +24,16 @@ public class MainApp extends Application {
     private GameEngine engine;
     private model.Map gameMap;
     private Market market;
+    private BorderPane root;
     private BoardCanvas boardCanvas;
     private PlayerInfoPane playerInfoPane;
     private MarketPane marketPane;
     private ActionPane actionPane;
     private DicePane dicePane;
-    private BorderPane root;
     private Stage primaryStage;
 
     private static final double BOT_DELAY_SECONDS = 0.8;
+    private static final String SAVE_FILE_PATH = "savegame.dat";
 
     @Override
     public void start(Stage primaryStage) {
@@ -40,26 +41,146 @@ public class MainApp extends Application {
 
         root = new BorderPane();
 
+        Alert loadAlert = new Alert(Alert.AlertType.CONFIRMATION);
+        loadAlert.setTitle("Silicon Valley Catan");
+        loadAlert.setHeaderText("Welcome back!");
+        loadAlert.setContentText("Do you want to load your previous saved game?");
+        ButtonType buttonYes = new ButtonType("Yes, Load Game");
+        ButtonType buttonNo = new ButtonType("No, Start New Game");
+        loadAlert.getButtonTypes().setAll(buttonYes, buttonNo);
+
+        Optional<ButtonType> loadResult = loadAlert.showAndWait();
+
+        if (loadResult.isPresent() && loadResult.get() == buttonYes) {
+            loadSavedGame(primaryStage);
+        } else {
+            startNewGameFlow();
+        }
+
+        Scene scene = new Scene(root, 1200, 800);
+
+        primaryStage.setTitle("Silicon Valley Catan");
+        primaryStage.setScene(scene);
+
+        primaryStage.setOnCloseRequest(event -> {
+            Alert exitAlert = new Alert(Alert.AlertType.CONFIRMATION,
+                    "Do you want to save the game before exiting?",
+                    ButtonType.YES, ButtonType.NO, ButtonType.CANCEL);
+            exitAlert.setTitle("Exit Game");
+            exitAlert.setHeaderText("Closing Silicon Valley Catan");
+
+            Optional<ButtonType> result = exitAlert.showAndWait();
+            if (result.isPresent() && result.get() == ButtonType.YES) {
+                SaveManager.saveGameAsync(SAVE_FILE_PATH, engine);
+            } else if (result.isPresent() && result.get() == ButtonType.CANCEL) {
+                event.consume();
+            }
+        });
+
+        primaryStage.show();
+    }
+
+    private void startNewGameFlow() {
         int playerCount = askPlayerCount();
         if (playerCount < 2 || playerCount > 4) {
             playerCount = 2;
         }
 
+        javafx.scene.control.TextInputDialog sizeDialog = new javafx.scene.control.TextInputDialog("5");
+        sizeDialog.setTitle("Custom Map Size");
+        sizeDialog.setHeaderText("Enter Tech Park Dimensions (2 to 10)\nSizes above 10 are disabled for balance.");
+        sizeDialog.setContentText("Grid Size:");
+
+        Optional<String> result = sizeDialog.showAndWait();
+        int mapSize = 5;
+
+        if (result.isPresent()) {
+            try {
+                mapSize = Integer.parseInt(result.get());
+                if (mapSize > 10) {
+                    mapSize = 10;
+                    Platform.runLater(() -> {
+                        Alert capAlert = new Alert(Alert.AlertType.WARNING, "Map size capped at 10x10 for optimal gameplay and screen fitting!");
+                        capAlert.show();
+                    });
+                } else if (mapSize < 2) {
+                    mapSize = 2;
+                }
+            } catch (NumberFormatException e) {
+                mapSize = 5;
+            }
+        }
+
         boolean[] isBotArray = askPlayerTypes(playerCount);
-        initializeGame(playerCount, isBotArray);
-        buildGameUI();
-
-        Scene scene = new Scene(root, 1200, 800);
-
-        primaryStage.setTitle("Silicon Valley Catan - " + playerCount + " Players");
-        primaryStage.setScene(scene);
-        primaryStage.show();
-
-        updateUI();
+        initializeGame(playerCount, isBotArray, mapSize);
+        buildUIComponents();
 
         PauseTransition startupDelay = new PauseTransition(Duration.seconds(0.3));
         startupDelay.setOnFinished(e -> checkAndRunBotTurn());
         startupDelay.play();
+    }
+
+    private void loadSavedGame(Stage stage) {
+        SaveManager.loadGameAsync(SAVE_FILE_PATH, new SaveManager.LoadGameCallback() {
+            @Override
+            public void onSuccess(GameEngine loadedEngine) {
+                Platform.runLater(() -> {
+                    engine = loadedEngine;
+                    gameMap = loadedEngine.getGameMap();
+                    market = loadedEngine.getMarket();
+
+                    buildUIComponents();
+
+                    Alert successAlert = new Alert(Alert.AlertType.INFORMATION, "Game loaded successfully!");
+                    successAlert.setTitle("Success");
+                    successAlert.setHeaderText(null);
+                    successAlert.show();
+
+                    checkAndRunBotTurn();
+                });
+            }
+
+            @Override
+            public void onFailure(String errorMessage) {
+                Platform.runLater(() -> {
+                    Alert errorAlert = new Alert(Alert.AlertType.ERROR, errorMessage + "\nStarting a new game instead.");
+                    errorAlert.setTitle("Load Failed");
+                    errorAlert.setHeaderText("Could not load save file");
+                    errorAlert.showAndWait();
+
+                    startNewGameFlow();
+                });
+            }
+        });
+    }
+
+    private void buildUIComponents() {
+        boardCanvas = new BoardCanvas(gameMap, this);
+        playerInfoPane = new PlayerInfoPane(engine, this);
+        marketPane = new MarketPane(market, engine, this);
+        actionPane = new ActionPane(engine, gameMap, this);
+        dicePane = new DicePane(engine, this);
+
+        root.setCenter(boardCanvas);
+        root.setRight(playerInfoPane);
+        root.setBottom(marketPane);
+        root.setLeft(actionPane);
+        root.setTop(dicePane);
+
+        updateUI();
+    }
+
+    public void triggerManualSave() {
+        SaveManager.saveGameAsync(SAVE_FILE_PATH, engine);
+        Alert alert = new Alert(Alert.AlertType.INFORMATION, "Your current game state has been saved in background!");
+        alert.setTitle("Game Saved");
+        alert.setHeaderText(null);
+        alert.show();
+    }
+
+    public void triggerManualLoad() {
+        Stage currentStage = (Stage) root.getScene().getWindow();
+        loadSavedGame(currentStage);
     }
 
     private MenuBar createMenuBar() {
@@ -213,8 +334,8 @@ public class MainApp extends Application {
         return isBot;
     }
 
-    private void initializeGame(int playerCount, boolean[] isBotArray) {
-        gameMap = new model.Map();
+    private void initializeGame(int playerCount, boolean[] isBotArray, int mapSize) {
+        gameMap = new Map(mapSize, mapSize);
         market = new Market();
 
         String[] colors = {"Red", "Blue", "Green", "Yellow"};
@@ -223,26 +344,26 @@ public class MainApp extends Application {
         for (int i = 0; i < playerCount; i++) {
             String name = isBotArray[i] ? "Bot " + (i + 1) : "Player " + (i + 1);
             Player player = isBotArray[i]
-                ? new SimpleBot(name, colors[i])
-                : new Player(name, colors[i]);
+                    ? new SimpleBot(name, colors[i])
+                    : new Player(name, colors[i]);
             players.add(player);
         }
 
         engine = new GameEngine(players, market, gameMap);
     }
 
-    // Handle discard flow: shows dialog for humans, auto-discards for bots
-    // Then handles auditor movement if it was a 7 roll
-    // Then calls onDone when all complete
+    private void initializeGame(int playerCount, boolean[] isBotArray) {
+        initializeGame(playerCount, isBotArray, 5);
+    }
+
     public void handleDiscardFlow(java.util.Map<Player, Integer> discardMap, Runnable onDone) {
         if (discardMap == null || discardMap.isEmpty()) {
-            onDone.run();
+            handleAuditorMovement(onDone);
             return;
         }
 
         List<Player> affectedPlayers = new ArrayList<>(discardMap.keySet());
         processNextDiscard(discardMap, affectedPlayers, 0, () -> {
-            // After all discards, handle auditor movement
             handleAuditorMovement(onDone);
         });
     }
@@ -251,7 +372,6 @@ public class MainApp extends Application {
         Player current = engine.getCurrentPlayer();
 
         if (current instanceof SimpleBot) {
-            // Bot auto-moves auditor to a random valid sector
             actionPane.updateStatus(current.getName() + " (BOT)\nmoving Auditor...");
             updateUI();
 
@@ -265,7 +385,6 @@ public class MainApp extends Application {
             });
             delay.play();
         } else {
-            // Human clicks a sector to move the auditor
             actionPane.updateStatus(current.getName() + ",\nclick a sector to\nmove the Auditor");
             updateUI();
             boardCanvas.enterMoveAuditorMode();
@@ -288,11 +407,13 @@ public class MainApp extends Application {
 
     private void autoMoveAuditor(SimpleBot bot) {
         model.Sector[][] sectors = gameMap.getSectors();
+        int sectorRows = sectors.length;
+        int sectorCols = sectors[0].length;
         java.util.List<int[]> validTargets = new java.util.ArrayList<>();
 
         boolean anyHasStructures = false;
-        for (int r = 0; r < 5; r++) {
-            for (int c = 0; c < 5; c++) {
+        for (int r = 0; r < sectorRows; r++) {
+            for (int c = 0; c < sectorCols; c++) {
                 model.Sector s = sectors[r][c];
                 if (s != null && !s.isBlocked() && hasPlayersOnSector(s)) {
                     validTargets.add(new int[]{r, c});
@@ -302,8 +423,8 @@ public class MainApp extends Application {
         }
 
         if (!anyHasStructures) {
-            for (int r = 0; r < 5; r++) {
-                for (int c = 0; c < 5; c++) {
+            for (int r = 0; r < sectorRows; r++) {
+                for (int c = 0; c < sectorCols; c++) {
                     if (sectors[r][c] != null && !sectors[r][c].isBlocked()) {
                         validTargets.add(new int[]{r, c});
                     }
@@ -328,8 +449,8 @@ public class MainApp extends Application {
 
     private boolean hasPlayersOnSector(model.Sector sector) {
         model.Vertex[] corners = {
-            sector.getBottomLeft(), sector.getBottomRight(),
-            sector.getTopLeft(), sector.getTopRight()
+                sector.getBottomLeft(), sector.getBottomRight(),
+                sector.getTopLeft(), sector.getTopRight()
         };
         for (model.Vertex v : corners) {
             if (v != null && v.hasStructure()) return true;
@@ -338,7 +459,7 @@ public class MainApp extends Application {
     }
 
     private void processNextDiscard(java.util.Map<Player, Integer> discardMap,
-                                     List<Player> affectedPlayers, int index, Runnable onDone) {
+                                    List<Player> affectedPlayers, int index, Runnable onDone) {
         if (index >= affectedPlayers.size()) {
             onDone.run();
             return;
@@ -378,7 +499,6 @@ public class MainApp extends Application {
     public void checkAndRunBotTurn() {
         Player current = engine.getCurrentPlayer();
         if (!(current instanceof SimpleBot)) return;
-
         if (engine.getCurrentPhase() == GamePhase.FINISHED) return;
 
         PauseTransition delay = new PauseTransition(Duration.seconds(BOT_DELAY_SECONDS));
@@ -437,7 +557,7 @@ public class MainApp extends Application {
                 actionPane.updateStatus(bot.getName() + " rolled " + total);
                 updateUI();
 
-                handleDiscardFlow(discardMap, () -> {
+                Runnable botPostRollLogic = () -> {
                     PauseTransition buildDelay = new PauseTransition(Duration.seconds(0.6));
                     buildDelay.setOnFinished(e2 -> {
                         engine.playBotTurn(new Dice());
@@ -451,7 +571,14 @@ public class MainApp extends Application {
                         }
                     });
                     buildDelay.play();
-                });
+                };
+
+                if (total == 7) {
+                    handleDiscardFlow(discardMap, botPostRollLogic);
+                } else {
+                    botPostRollLogic.run();
+                }
+
             } catch (Exception ex) {
                 actionPane.updateStatus("Bot error: " + ex.getMessage());
                 updateUI();
