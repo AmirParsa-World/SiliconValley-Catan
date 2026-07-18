@@ -10,7 +10,7 @@ echo Compiling...
 if exist "%OUT%" rmdir /s /q "%OUT%"
 mkdir "%OUT%"
 
-"%JAVAC%" -encoding UTF-8 -d "%OUT%" -sourcepath "%SRC%" --module-path "%JFX%" --add-modules javafx.controls,javafx.fxml "%SRC%\*.java" "%SRC%\model\*.java" "%SRC%\controller\*.java" "%SRC%\view\*.java" "%SRC%\exception\*.java" "%SRC%\util\*.java"
+"%JAVAC%" -encoding UTF-8 -d "%OUT%" -sourcepath "%SRC%" --module-path "%JFX%" --add-modules javafx.controls,javafx.fxml "%SRC%\Main.java" "%SRC%\model\Dice.java" "%SRC%\model\Sector.java" "%SRC%\model\Edge.java" "%SRC%\model\Map.java" "%SRC%\model\Vertex.java" "%SRC%\model\Unicorn.java" "%SRC%\model\Structure.java" "%SRC%\model\SimpleBot.java" "%SRC%\model\ResourceType.java" "%SRC%\model\Regulator.java" "%SRC%\model\Player.java" "%SRC%\model\MVP.java" "%SRC%\model\FounderRole.java" "%SRC%\controller\Market.java" "%SRC%\controller\GamePhase.java" "%SRC%\controller\GameEngine.java" "%SRC%\view\MainApp.java" "%SRC%\view\BoardCanvas.java" "%SRC%\view\PlayerInfoPane.java" "%SRC%\view\ActionPane.java" "%SRC%\view\DiscardDialog.java" "%SRC%\view\BotTestRunner.java" "%SRC%\view\DicePane.java" "%SRC%\view\MarketPane.java" "%SRC%\exception\StructurePlacementException.java" "%SRC%\exception\NotEnoughResourceException.java" "%SRC%\exception\InvalidTradeException.java" "%SRC%\exception\InvalidRoleException.java" "%SRC%\exception\InvalidPlacementException.java" "%SRC%\exception\InvalidAuditorPlacementException.java" "%SRC%\exception\AlreadyRolledException.java" "%SRC%\util\SaveManager.java" "%SRC%\util\PersistenceTester.java" "%SRC%\util\GameLogTester.java" "%SRC%\util\DeepPersistenceTester.java" "%SRC%\util\GuiSaveLoadTest.java"
 
 if %ERRORLEVEL%==0 (
     echo Compilation successful!

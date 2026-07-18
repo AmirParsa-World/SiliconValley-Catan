@@ -1,51 +1,48 @@
-package util; // یا هر پکیجی که دوست داری مثل controller
+package util;
 
 import controller.GameEngine;
+import javafx.application.Platform;
 import java.io.*;
 
 public class SaveManager {
 
-    // ۱. متد ذخیره ناهمگام بازی
-    public static void saveGameAsync(String filePath, GameEngine engine) {
-        // ایجاد یک ترد مستقل تا ترد اصلی UI (کدهای باران) فریز نشود
-        new Thread(() -> {
-            // استفاده از ساختار try-with-resources برای بستن خودکار استریم‌ها
-            try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(filePath))) {
-
-                // نوشتن کل درخت اشیاء موتور بازی روی هارد
-                oos.writeObject(engine);
-                System.out.println("💾 Game saved successfully by background thread!");
-
-            } catch (IOException e) {
-                System.err.println("❌ Failed to save game: " + e.getMessage());
-            }
-        }).start(); // استارت زدن ترد در پس‌زمینه
+    public static void saveGame(String filePath, GameEngine engine) throws IOException {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(filePath))) {
+            oos.writeObject(engine);
+            System.out.println("Game saved successfully!");
+        }
     }
 
-    // ۲. متد لود ناهمگام بازی
-    public static void loadGameAsync(String filePath, LoadGameCallback callback) {
+    public static void loadGame(String filePath, LoadGameCallback callback) {
         new Thread(() -> {
             try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(filePath))) {
-
-                // خواندن بایت‌ها و تبدیل مجدد آن‌ها به شیء واقعی گیم‌انجين
                 GameEngine loadedEngine = (GameEngine) ois.readObject();
-
-                // شلیک خبر موفقیت به کنترلر اصلی بازی
-                callback.onSuccess(loadedEngine);
-
+                runOnFXThread(() -> callback.onSuccess(loadedEngine));
             } catch (FileNotFoundException e) {
-                callback.onFailure("❌ فایل ذخیره پیدا نشد!");
+                runOnFXThread(() -> callback.onFailure("Save file not found!"));
             } catch (IOException | ClassNotFoundException e) {
-                callback.onFailure("❌ فایل ذخیره خراب است یا ساختار کلس‌ها تغییر کرده!");
+                runOnFXThread(() -> callback.onFailure("Save file is corrupted or class structure has changed!"));
             }
         }).start();
     }
 
-    // ۳. اینترفیس واکنشی (Callback) برای انتقال امن دیتا به بخش گرافیک
+    public static GameEngine loadGameSync(String filePath) throws IOException, ClassNotFoundException {
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(filePath))) {
+            return (GameEngine) ois.readObject();
+        }
+    }
+
+    private static void runOnFXThread(Runnable action) {
+        try {
+            Platform.runLater(action);
+        } catch (IllegalStateException e) {
+            // JavaFX toolkit not initialized (e.g. running in console tester) — run directly
+            action.run();
+        }
+    }
+
     public interface LoadGameCallback {
         void onSuccess(GameEngine loadedEngine);
         void onFailure(String errorMessage);
     }
-
-
 }

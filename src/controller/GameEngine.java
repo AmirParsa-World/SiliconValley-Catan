@@ -68,6 +68,10 @@ public class GameEngine implements Serializable {
         return this.gameMap;
     }
 
+    public Market getMarket() {
+        return this.market;
+    }
+
     public List<Player> getPlayers() {
         return this.players;
     }

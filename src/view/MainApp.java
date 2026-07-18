@@ -4,15 +4,16 @@ import javafx.animation.PauseTransition;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
-import javafx.scene.control.ButtonType;
-import javafx.scene.control.ChoiceDialog;
+import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import controller.GameEngine;
 import controller.GamePhase;
 import controller.Market;
 import model.*;
+import util.SaveManager;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -27,22 +28,133 @@ public class MainApp extends Application {
     private MarketPane marketPane;
     private ActionPane actionPane;
     private DicePane dicePane;
+    private BorderPane root;
+    private Stage primaryStage;
 
     private static final double BOT_DELAY_SECONDS = 0.8;
 
     @Override
     public void start(Stage primaryStage) {
+        this.primaryStage = primaryStage;
+
+        root = new BorderPane();
+
+        MenuBar menuBar = createMenuBar();
+        root.setTop(menuBar);
+
         int playerCount = askPlayerCount();
         if (playerCount < 2 || playerCount > 4) {
             playerCount = 2;
         }
 
         boolean[] isBotArray = askPlayerTypes(playerCount);
-
         initializeGame(playerCount, isBotArray);
+        buildGameUI();
 
-        BorderPane root = new BorderPane();
+        Scene scene = new Scene(root, 1200, 800);
 
+        primaryStage.setTitle("Silicon Valley Catan - " + playerCount + " Players");
+        primaryStage.setScene(scene);
+        primaryStage.show();
+
+        updateUI();
+
+        PauseTransition startupDelay = new PauseTransition(Duration.seconds(0.3));
+        startupDelay.setOnFinished(e -> checkAndRunBotTurn());
+        startupDelay.play();
+    }
+
+    private MenuBar createMenuBar() {
+        MenuBar menuBar = new MenuBar();
+
+        Menu fileMenu = new Menu("File");
+
+        MenuItem saveItem = new MenuItem("Save Game");
+        saveItem.setOnAction(e -> saveGame());
+
+        MenuItem loadItem = new MenuItem("Load Game");
+        loadItem.setOnAction(e -> loadGame());
+
+        MenuItem newGameItem = new MenuItem("New Game");
+        newGameItem.setOnAction(e -> startNewGame());
+
+        fileMenu.getItems().addAll(saveItem, loadItem, new SeparatorMenuItem(), newGameItem);
+        menuBar.getMenus().add(fileMenu);
+
+        return menuBar;
+    }
+
+    private void saveGame() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Save Game");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Catan Save Files", "*.catan"));
+        fileChooser.setInitialFileName("save.catan");
+        File file = fileChooser.showSaveDialog(primaryStage);
+        if (file != null) {
+            try {
+                SaveManager.saveGame(file.getAbsolutePath(), engine);
+                Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                alert.setTitle("Game Saved");
+                alert.setHeaderText(null);
+                alert.setContentText("Game saved successfully!");
+                alert.showAndWait();
+            } catch (Exception e) {
+                Alert alert = new Alert(Alert.AlertType.ERROR);
+                alert.setTitle("Save Failed");
+                alert.setHeaderText(null);
+                alert.setContentText("Failed to save game: " + e.getMessage());
+                alert.showAndWait();
+            }
+        }
+    }
+
+    private void loadGame() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Load Game");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Catan Save Files", "*.catan"));
+        File file = fileChooser.showOpenDialog(primaryStage);
+        if (file != null) {
+            SaveManager.loadGame(file.getAbsolutePath(), new SaveManager.LoadGameCallback() {
+                @Override
+                public void onSuccess(GameEngine loadedEngine) {
+                    loadGameState(loadedEngine);
+                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                    alert.setTitle("Game Loaded");
+                    alert.setHeaderText(null);
+                    alert.setContentText("Game loaded successfully! It is " + engine.getCurrentPlayer().getName() + "'s turn.");
+                    alert.showAndWait();
+                }
+
+                @Override
+                public void onFailure(String errorMessage) {
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    alert.setTitle("Load Failed");
+                    alert.setHeaderText(null);
+                    alert.setContentText(errorMessage);
+                    alert.showAndWait();
+                }
+            });
+        }
+    }
+
+    private void loadGameState(GameEngine loadedEngine) {
+        this.engine = loadedEngine;
+        this.gameMap = loadedEngine.getGameMap();
+        this.market = getMarketFromEngine(loadedEngine);
+
+        buildGameUI();
+        updateUI();
+
+        PauseTransition delay = new PauseTransition(Duration.seconds(0.3));
+        delay.setOnFinished(e -> checkAndRunBotTurn());
+        delay.play();
+    }
+
+    private Market getMarketFromEngine(GameEngine engine) {
+        return engine.getMarket();
+    }
+
+    private void buildGameUI() {
         boardCanvas = new BoardCanvas(gameMap, this);
         playerInfoPane = new PlayerInfoPane(engine, this);
         marketPane = new MarketPane(market, engine, this);
@@ -53,14 +165,18 @@ public class MainApp extends Application {
         root.setRight(playerInfoPane);
         root.setBottom(marketPane);
         root.setLeft(actionPane);
-        root.setTop(dicePane);
+    }
 
-        Scene scene = new Scene(root, 1200, 800);
+    private void startNewGame() {
+        int playerCount = askPlayerCount();
+        if (playerCount < 2 || playerCount > 4) {
+            playerCount = 2;
+        }
 
-        primaryStage.setTitle("Silicon Valley Catan - " + playerCount + " Players");
-        primaryStage.setScene(scene);
-        primaryStage.show();
+        boolean[] isBotArray = askPlayerTypes(playerCount);
+        initializeGame(playerCount, isBotArray);
 
+        buildGameUI();
         updateUI();
 
         PauseTransition startupDelay = new PauseTransition(Duration.seconds(0.3));
@@ -96,7 +212,7 @@ public class MainApp extends Application {
     }
 
     private void initializeGame(int playerCount, boolean[] isBotArray) {
-        gameMap = new Map();
+        gameMap = new model.Map();
         market = new Market();
 
         String[] colors = {"Red", "Blue", "Green", "Yellow"};
@@ -152,9 +268,6 @@ public class MainApp extends Application {
             updateUI();
             boardCanvas.enterMoveAuditorMode();
 
-            // Wait for the board canvas click to complete the move
-            // The enterMoveAuditorMode sets up the click handler which calls
-            // moveAuditor and then buildMode = NONE. We poll for completion.
             waitForAuditorMove(onDone);
         }
     }
@@ -172,7 +285,6 @@ public class MainApp extends Application {
     }
 
     private void autoMoveAuditor(SimpleBot bot) {
-        // Find a random sector with player structures (or any if none have structures)
         model.Sector[][] sectors = gameMap.getSectors();
         java.util.List<int[]> validTargets = new java.util.ArrayList<>();
 
@@ -202,7 +314,6 @@ public class MainApp extends Application {
             try {
                 engine.moveAuditor(bot, target[0], target[1]);
             } catch (Exception e) {
-                // If move fails, try any valid sector
                 for (int[] t : validTargets) {
                     try {
                         engine.moveAuditor(bot, t[0], t[1]);
@@ -235,7 +346,6 @@ public class MainApp extends Application {
         int amount = discardMap.get(player);
 
         if (player instanceof SimpleBot) {
-            // Bots auto-discard randomly
             player.discardRandomResources(amount);
             actionPane.updateStatus(player.getName() + " (BOT)\ndiscarded " + amount + " cards.");
             updateUI();
@@ -244,7 +354,6 @@ public class MainApp extends Application {
             delay.setOnFinished(e -> processNextDiscard(discardMap, affectedPlayers, index + 1, onDone));
             delay.play();
         } else {
-            // Human players choose which cards to discard
             actionPane.updateStatus(player.getName() + ",\nchoose cards to discard!");
             updateUI();
 
@@ -326,7 +435,6 @@ public class MainApp extends Application {
                 actionPane.updateStatus(bot.getName() + " rolled " + total);
                 updateUI();
 
-                // Handle discard flow if needed (roll of 7)
                 handleDiscardFlow(discardMap, () -> {
                     PauseTransition buildDelay = new PauseTransition(Duration.seconds(0.6));
                     buildDelay.setOnFinished(e2 -> {
