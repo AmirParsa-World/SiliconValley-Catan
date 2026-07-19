@@ -32,22 +32,44 @@ public class Market implements Serializable {
         }
     }
 
-    // 📈 Buying an asset: Increases market price, resets stagnation warning
+    // 🔄 متد پشتیبان برای خرید (جهت برطرف شدن ارور فایلهای تست قدیمی)
     public void buyResource(Player player, ResourceType resource) {
+        // متد اصلی را صدا می‌زند و انجین را از پلیر می‌گیرد (اگر پلیر انجین نداشت، null پاس می‌دهد)
+        buyResource(player, resource, player.getEngine());
+    }
+
+    // 🔄 متد پشتیبان برای فروش (جهت برطرف شدن ارور فایلهای تست قدیمی)
+    public void sellResource(Player player, ResourceType resource) {
+        sellResource(player, resource, player.getEngine());
+    }
+
+    // 📈 Buying an asset: Increases market price, resets stagnation warning
+    public void buyResource(Player player, ResourceType resource, GameEngine engine) {
         validateResource(resource);
 
-        // Dynamic Price Calculation: Hacker CEO always buys at a fixed rate of 3 CAPITAL!
         int pricePaid = (player.getRole() == FounderRole.HACKER_CEO) ? 3 : currentPrices.get(resource);
 
         player.spendResource(ResourceType.CAPITAL, pricePaid);
         player.addResource(resource, 1);
 
         adjustPrice(resource, 1);
-        stagnationTrackers.put(resource, 0); // Direct market interaction resets stagnation 🔄
+        stagnationTrackers.put(resource, 0);
+
+        // 🎯 حالا انجین رو مستقیم داری و هیچ‌وقت null نمیشه!
+        engine.log(player.getName() + " traded: bought 1 " + resource.getDisplayName());
+
+        if (engine != null) {
+            engine.log(player.getName() + " traded...");
+        }
     }
 
     // 📉 Selling an asset: Decreases market price, resets stagnation warning
-    public void sellResource(Player player, ResourceType resource) {
+    public void sellResource(Player player, ResourceType resource, GameEngine engine) {
+
+        if (engine != null) {
+            engine.log(player.getName() + " traded...");
+        }
+
         validateResource(resource);
         int currentMarketPrice = currentPrices.get(resource);
 
@@ -55,7 +77,10 @@ public class Market implements Serializable {
         player.addResource(ResourceType.CAPITAL, currentMarketPrice);
 
         adjustPrice(resource, -1);
-        stagnationTrackers.put(resource, 0); // Direct market interaction resets stagnation 🔄
+        stagnationTrackers.put(resource, 0);
+
+        // 🎯 استفاده مستقیم از انجین بدون واسطه
+        engine.log(player.getName() + " traded: sold 1 " + resource.getDisplayName());
     }
 
     // ⏳ The Stagnation Clock: Triggered by the coordinator layer at the end of every full round
@@ -103,7 +128,8 @@ public class Market implements Serializable {
 
         player.spendResource(offer, requiredRate);
         player.addResource(receive, 1);
-        System.out.println("🏦 MARKET TRADE: " + player.getName() + " traded " + requiredRate + " " + offer + " for 1 " + receive);
+
+        player.getEngine().log(player.getName() + " traded resources");
     }
 
     // 💰 قیمت فروش منبع به مارکت (برگرفته از قیمت جاری سیستم باران)

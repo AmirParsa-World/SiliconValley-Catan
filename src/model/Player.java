@@ -1,5 +1,6 @@
 package model;
 
+import controller.GameEngine;
 import exception.NotEnoughResourceException;
 
 import java.io.Serializable;
@@ -17,7 +18,19 @@ public class Player implements Serializable {
     private final List<Structure> structures;
     private boolean hasLongestNetwork;
 
+    // 🔗 اتصال موقت به موتور بازی (transient مانع خراب شدن سیستم Save/Load می‌شود)
+    private transient GameEngine engine;
+
     private static final long serialVersionUID = 1L;
+
+    // 🔄 گتر و سترهای مدیریت ارتباط با موتور اصلی بازی
+    public GameEngine getEngine() {
+        return this.engine;
+    }
+
+    public void setEngine(GameEngine engine) {
+        this.engine = engine;
+    }
 
     public Player(String name, String color) {
         this.name = name;
@@ -26,26 +39,25 @@ public class Player implements Serializable {
         this.structures = new ArrayList<>();
         this.hasLongestNetwork = false;
 
-        // Enum map: baran
+        // مقداردهی اولیه کیف پول منابع
         this.wallet = new EnumMap<>(ResourceType.class);
-
         for (ResourceType type : ResourceType.values()) {
             this.wallet.put(type, 0);
         }
     }
 
-    // getter methods: world
+    // 📊 متدهای گتر اصلی بازیکن
     public String getName() { return name; }
     public String getColor() { return color; }
     public List<Structure> getStructures() { return structures; }
     public Map<ResourceType, Integer> getWallet() { return wallet; }
 
-    // Some other good methods: baran
+    // 📦 دریافت موجودی یک منبع خاص
     public int getResource(ResourceType type) {
         return wallet.getOrDefault(type, 0);
     }
 
-    // baran
+    // 💰 محاسبه مجموع کل منابع موجود در کیف پول
     public int getTotalResources() {
         int total = 0;
         for (int amount : wallet.values()) {
@@ -54,11 +66,13 @@ public class Player implements Serializable {
         return total;
     }
 
+    // 📥 اضافه کردن منبع به کیف پول
     public void addResource(ResourceType type, int amount) {
         int currentAmount = wallet.getOrDefault(type, 0);
         this.wallet.put(type, amount + currentAmount);
     }
 
+    // 📤 کسر منبع از کیف پول همراه با کنترل خطا
     public void spendResource(ResourceType type, int amount) {
         if (wallet.getOrDefault(type, 0) < amount) {
             throw new NotEnoughResourceException("Dear player, you don't have enough " + type + " resource.");
@@ -66,16 +80,16 @@ public class Player implements Serializable {
         this.wallet.put(type, wallet.get(type) - amount);
     }
 
+    // 🏗️ اضافه کردن سازه جدید به لیست بازیکن
     public void addStructure(Structure structure) {
         structures.add(structure);
     }
 
-    // world
-    // 🏆 Dynamic Victory Point Counter inside model/Player.java
+    // 🏆 محاسبه داینامیک امتیاز کل بازیکن (با احتساب نقش‌ها و جاده‌ها)
     public int countPlayerPoint() {
         int totalPoint = (this.role != null && this.role != FounderRole.NONE) ? -1 : 0;
 
-        // اضافه کردن امتیاز جاده بلندتر
+        // اعمال امتیاز بابت داشتن طولانی‌ترین شبکه ارتباطی
         if (this.hasLongestNetwork) {
             totalPoint += 2;
         }
@@ -95,8 +109,7 @@ public class Player implements Serializable {
 
     public void setRole(FounderRole role) { this.role = role; }
 
-
-    // 💸 متد کمکی برای سوزاندن خودکار تعداد مشخصی کارت از ولت بازیکن
+    // 💸 سوزاندن تصادفی کارت‌ها (استفاده در جریمه‌های مالی و تاس ۷ بازرس)
     public void discardRandomResources(int amount) {
         int discarded = 0;
         while (discarded < amount && getTotalResources() > 0) {
@@ -110,12 +123,10 @@ public class Player implements Serializable {
         }
     }
 
-
     public void setHasLongestNetwork(boolean hasLongestNetwork) {
         this.hasLongestNetwork = hasLongestNetwork;
     }
 
-    // داخل کلاس Player.java این متد را اضافه کن
     public boolean isHasLongestNetwork() {
         return this.hasLongestNetwork;
     }

@@ -8,6 +8,7 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontPosture;
 import javafx.scene.text.FontWeight;
@@ -22,8 +23,8 @@ public class MarketPane extends HBox {
     private final MainApp app;
 
     private static final ResourceType[] TRADEABLE = {
-        ResourceType.DATA, ResourceType.PATENT, ResourceType.CLOUD,
-        ResourceType.CAPITAL, ResourceType.TALENT
+            ResourceType.DATA, ResourceType.PATENT, ResourceType.CLOUD,
+            ResourceType.CAPITAL, ResourceType.TALENT
     };
 
     private VBox[] resourceColumns;
@@ -74,6 +75,17 @@ public class MarketPane extends HBox {
         nameLabel.setWrapText(true);
         nameLabel.setMaxWidth(70);
 
+        // 🎨 اضافه شدن اندیکاتور رنگی هماهنگ با نقشه و لژند به مارکت
+        Rectangle colorBar = new Rectangle(10, 10);
+        colorBar.setArcWidth(3);
+        colorBar.setArcHeight(3);
+        colorBar.setFill(getResourceColor(type));
+        colorBar.setStroke(Color.web("#555555"));
+        colorBar.setStrokeWidth(0.8);
+
+        HBox header = new HBox(4, colorBar, nameLabel);
+        header.setAlignment(Pos.CENTER);
+
         priceLabels[index] = new Label();
         priceLabels[index].setFont(Font.font("Arial", FontWeight.BOLD, 14));
 
@@ -99,25 +111,22 @@ public class MarketPane extends HBox {
         HBox buttons = new HBox(4, buyButtons[index], sellButtons[index]);
         buttons.setAlignment(Pos.CENTER);
 
-        VBox col = new VBox(2, nameLabel, priceLabels[index], ownedLabels[index], buttons);
+        VBox col = new VBox(2, header, priceLabels[index], ownedLabels[index], buttons);
         col.setAlignment(Pos.CENTER);
         col.setPadding(new Insets(4));
         col.setStyle("-fx-background-color: #e8e8e8; -fx-background-radius: 4;");
-        col.setPrefWidth(80);
+        col.setPrefWidth(85);
 
         return col;
     }
 
     private void buyResource(ResourceType type) {
         Player current = engine.getCurrentPlayer();
-        System.out.println("buyResource called for " + type + ", player=" + current.getName()
-            + ", isBot=" + (current instanceof SimpleBot)
-            + ", phase=" + engine.getCurrentPhase());
         if (current instanceof SimpleBot) return;
         if (engine.getCurrentPhase() != GamePhase.NORMAL) return;
 
         try {
-            market.buyResource(current, type);
+            market.buyResource(current, type, engine);
             int price = market.getPrice(type);
             app.getActionPane().updateStatus("Bought 1 " + type.getDisplayName() + "\nfor " + price + " CAPITAL");
             app.updateUI();
@@ -128,14 +137,11 @@ public class MarketPane extends HBox {
 
     private void sellResource(ResourceType type) {
         Player current = engine.getCurrentPlayer();
-        System.out.println("sellResource called for " + type + ", player=" + current.getName()
-            + ", isBot=" + (current instanceof SimpleBot)
-            + ", phase=" + engine.getCurrentPhase());
         if (current instanceof SimpleBot) return;
         if (engine.getCurrentPhase() != GamePhase.NORMAL) return;
 
         try {
-            market.sellResource(current, type);
+            market.sellResource(current, type, engine);
             int price = market.getPrice(type);
             app.getActionPane().updateStatus("Sold 1 " + type.getDisplayName() + "\nfor " + price + " CAPITAL");
             app.updateUI();
@@ -147,16 +153,14 @@ public class MarketPane extends HBox {
     public void update() {
         Player current = engine.getCurrentPlayer();
         boolean canTrade = engine.getCurrentPhase() == GamePhase.NORMAL
-            && !(current instanceof SimpleBot)
-            && engine.hasRolledThisTurn();
+                && !(current instanceof SimpleBot)
+                && engine.hasRolledThisTurn();
 
-        // Debug output
         System.out.println("MarketPane update: phase=" + engine.getCurrentPhase()
-            + ", isBot=" + (current instanceof SimpleBot)
-            + ", hasRolled=" + engine.hasRolledThisTurn()
-            + ", canTrade=" + canTrade);
+                + ", isBot=" + (current instanceof SimpleBot)
+                + ", hasRolled=" + engine.hasRolledThisTurn()
+                + ", canTrade=" + canTrade);
 
-        // Update hint label
         if (canTrade) {
             hintLabel.setText("Trading enabled - buy/sell resources!");
             hintLabel.setTextFill(Color.GREEN);
@@ -213,5 +217,17 @@ public class MarketPane extends HBox {
         if (price < 4) return Color.GREEN;
         if (price > 4) return Color.RED;
         return Color.BLACK;
+    }
+
+    // 🎨 متد هماهنگ‌سازی سراسری رنگ مارکت با مپ بازی
+    private Color getResourceColor(ResourceType type) {
+        switch (type) {
+            case TALENT:  return Color.web("#90EE90"); // سبز
+            case CAPITAL: return Color.web("#FFD700"); // زرد
+            case CLOUD:   return Color.web("#87CEEB"); // آبی
+            case PATENT:  return Color.web("#D3D3D3"); // خاکستری
+            case DATA:    return Color.web("#FFB6C1"); // صورتی
+            default:      return Color.GRAY;
+        }
     }
 }

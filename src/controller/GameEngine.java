@@ -247,18 +247,24 @@ public class GameEngine implements Serializable {
 
                     for (Vertex vertex : corners) {
                         if (vertex != null && vertex.hasStructure() && vertex.getOwner() != null) {
+
+                            // 🛑 اگر این ورتکس توسط بازرس پلمپ شده باشد، از این سکتور هیچ منبعی نمی‌گیرد
+                            if (vertex.isLockedByAuditor()) {
+                                continue;
+                            }
+
                             Player owner = vertex.getOwner();
                             int yield = (vertex.getStructure().getPoint() == 2) ? 2 : 1;
 
                             owner.addResource(resource, yield);
-                            log("📦 " + owner.getName() + " earned " + yield + " " + resource + " from Sector " + rollValue);                        }
+                            log("📦 " + owner.getName() + " earned " + yield + " " + resource + " from Sector " + rollValue);
+                        }
                     }
                 }
             }
         }
         return null;
     }
-
     // 🕸️ محاسبه طول بلندترین جاده متصل (بدون نیاز به پاس دادن دستی نقشه)
     public int calculateLongestNetwork(Player player) {
         int maxLength = 0;
@@ -324,6 +330,11 @@ public class GameEngine implements Serializable {
 
     // 🏢 ساخت محصول اولیه (MVP)
     public void buildMVP(Player player, Vertex targetVertex) {
+        // 🚨 شرط بازرس مالیاتی: اگر خانه قفل بود، اجازه ساخت نده
+        if (targetVertex.isLockedByAuditor()) {
+            throw new exception.InvalidPlacementException("🚨 REGULATORY BLOCK: The Tax Inspector is auditing this sector! You cannot build here.");
+        }
+
         if (player.getResource(ResourceType.CAPITAL) < 1 || player.getResource(ResourceType.TALENT) < 1 ||
                 player.getResource(ResourceType.CLOUD) < 1 || player.getResource(ResourceType.DATA) < 1) {
             throw new NotEnoughResourceException(player.getName() + " lacks resources for MVP! (Needs: 1 Capital, 1 Talent, 1 Cloud, 1 Data)");
@@ -348,6 +359,21 @@ public class GameEngine implements Serializable {
 
     // 🦄 ارتقای MVP به Unicorn
     public void upgradeToUnicorn(Player player, Vertex targetVertex) {
+
+        if (targetVertex.isLockedByAuditor()) { // یا هر متدی که برای چک کردن قفل بودن سکتور داری
+            throw new exception.InvalidPlacementException("🚨 REGULATORY BLOCK: The Tax Inspector is auditing this sector! You cannot build or upgrade here.");
+        }
+
+        System.out.println("DEBUG UNICORN: Player=" + player.getName() +
+                " | Backend Data=" + player.getResource(ResourceType.DATA) +
+                " | Backend Cloud=" + player.getResource(ResourceType.CLOUD));
+
+        if (!targetVertex.hasStructure() || !(targetVertex.getStructure() instanceof MVP) || !targetVertex.getOwner().equals(player)) {
+            throw new exception.InvalidPlacementException("You can only upgrade your own MVP!");
+        }
+
+
+
         if (!targetVertex.hasStructure() || !(targetVertex.getStructure() instanceof MVP) || !targetVertex.getOwner().equals(player)) {
             throw new exception.InvalidPlacementException("You can only upgrade your own MVP!");
         }
@@ -424,15 +450,30 @@ public class GameEngine implements Serializable {
             throw new exception.InvalidAuditorPlacementException("You must place the Auditor on a sector that has at least one player's structure!");
         }
 
+        // 🔓 ۱. پیدا کردن سکتور مسدود قبلی و آزاد کردن ۴ گوشه آن
         for (Sector[] row : this.gameMap.getSectors()) {
             for (Sector sec : row) {
                 if (sec != null && sec.isBlocked()) {
+                    Vertex[] oldCorners = { sec.getBottomLeft(), sec.getBottomRight(), sec.getTopLeft(), sec.getTopRight() };
+                    for (Vertex v : oldCorners) {
+                        if (v != null) {
+                            v.setLockedByAuditor(false);
+                        }
+                    }
                     sec.unblock();
                 }
             }
         }
 
+        // 🔒 ۲. مسدود کردن سکتور جدید و قفل کردن ۴ گوشه آن
         targetSector.block();
+        Vertex[] newCorners = { targetSector.getBottomLeft(), targetSector.getBottomRight(), targetSector.getTopLeft(), targetSector.getTopRight() };
+        for (Vertex v : newCorners) {
+            if (v != null) {
+                v.setLockedByAuditor(true);
+            }
+        }
+
         this.gameMap.getAuditor().move(targetRow, targetCol);
         log("🕵️‍♂️ AUDITOR: Moved to sector (" + targetRow + "," + targetCol + ")");
     }

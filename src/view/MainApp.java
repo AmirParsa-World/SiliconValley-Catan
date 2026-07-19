@@ -732,79 +732,64 @@ public class MainApp extends Application {
         List<String> logs = engine.getGameLog();
         int currentSize = logs.size();
 
-        // 📊 متغیرهای داشبورد ثابت
         String diceVal = "-";
         int mvpCount = 0;
         int roadCount = 0;
         int unicornCount = 0;
+
+        int totalYield = 0;
         int tradeCount = 0;
-        String auditorLoc = "-";
         int taxLost = 0;
-        List<String> compactYields = new ArrayList<>();
+        String auditorLoc = "-";
 
-        // 🔍 اگر حرکتی ثبت شده بود، مقادیر را استخراج می‌کنیم
-        if (currentSize > startLogSize) {
-            java.util.Map<String, Integer> resourcesMap = new java.util.HashMap<>();
+        for (int i = startLogSize; i < currentSize; i++) {
+            String logLine = logs.get(i);
+            String logLower = logLine.toLowerCase();
 
-            for (int i = startLogSize; i < currentSize; i++) {
-                String logLine = logs.get(i);
+            if (logLower.contains("rolled a")) {
+                diceVal = logLine.replaceAll(".*rolled a (\\d+).*", "$1");
+            }
+            else if (logLower.contains("built an mvp") || logLower.contains("built mvp")) {
+                mvpCount++;
+            }
+            else if (logLower.contains("partnership") || logLower.contains("road")) {
+                roadCount++;
+            }
+            else if (logLower.contains("upgraded an") || logLower.contains("unicorn")) {
+                unicornCount++;
+            }
+            else if (logLower.contains("auditor") && (logLower.contains("moved") || logLower.contains("sector"))) {
+                auditorLoc = logLine.replaceAll(".*(?:sector|Sector)\\s*[\\[\\(](\\d+,\\d+)[\\]\\)].*", "[$1]");
+                if (auditorLoc.equals(logLine)) auditorLoc = "Moved";
+            }
 
-                if (logLine.contains("rolled a")) {
-                    diceVal = logLine.replaceAll(".*rolled a (\\d+).*", "$1");
-                }
-                else if (logLine.contains("built an MVP") || logLine.contains("built an MVP on Vertex")) {
-                    mvpCount++;
-                }
-                else if (logLine.contains("established a Partnership") || logLine.contains("established a Partnership!")) {
-                    roadCount++;
-                }
-                else if (logLine.contains("upgraded an MVP")) {
-                    unicornCount++;
-                }
-                else if (logLine.contains("AUDITOR: Moved") || logLine.contains("Moved to sector")) {
-                    auditorLoc = logLine.replaceAll(".*sector \\((\\d+,\\d+)\\).*", "[$1]");
-                    if (auditorLoc.equals(logLine)) {
-                        auditorLoc = logLine.replaceAll(".*Sector \\[(\\d+,\\d+)\\].*", "[$1]");
+            // 💰 شمارش عددی سود و زیان و تریدها بدون توجه به نام منبع
+            // 💰 محاسبه مجموع سود و زیان منبع فقط برای پلیر/بات جاری (کاملاً واکسینه شده در برابر ساعت و نام بات)
+            if (logLine.contains(entityName)) {
+                if (logLower.contains("earned") || logLower.contains("yield") || logLower.contains("received") || logLower.contains("added")) {
+                    // 🎯 فقط عددی که بعد از کلمات کلیدی درآمد آمده را شکار میکند
+                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:earned|yield|received|added)\\s+(\\d+)").matcher(logLower);
+                    if (m.find()) {
+                        totalYield += Integer.parseInt(m.group(1));
                     }
                 }
-                else if (logLine.contains("earned") || logLine.contains("YIELD")) {
-                    if (logLine.contains(entityName)) {
-                        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d+)\\s+([a-zA-Z]+)").matcher(logLine);
-                        if (m.find()) {
-                            int amt = Integer.parseInt(m.group(1));
-                            String res = m.group(2).toUpperCase();
-                            // خلاصه کردن نام ریسورس‌ها برای جاگیری بهتر در داشبورد
-                            if(res.equals("CAPITAL")) res = "CAP";
-                            if(res.equals("TALENT")) res = "TLN";
-                            if(res.equals("PATENT")) res = "PTN";
-                            if(res.equals("CLOUD")) res = "CLD";
-                            if(res.equals("DATA")) res = "DAT";
-
-                            resourcesMap.put(res, resourcesMap.getOrDefault(res, 0) + amt);
-                        }
-                    }
-                }
-                else if (logLine.contains("lost") || logLine.contains("TAXED")) {
-                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:discarded|discard|must discard)\\s+(\\d+)").matcher(logLine);
+                if (logLower.contains("lost") || logLower.contains("taxed") || logLower.contains("discarded") || logLower.contains("spent")) {
+                    // 🎯 فقط عددی که بعد از کلمات کلیدی جریمه/هزینه آمده را شکار میکند
+                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:lost|taxed|discarded|spent)\\s+(\\d+)").matcher(logLower);
                     if (m.find()) {
                         taxLost += Integer.parseInt(m.group(1));
                     }
                 }
-
-                if (logLine.contains("TRADE") || logLine.contains("TRANSACTION") || logLine.toLowerCase().contains("market")) {
+                if (logLower.contains("trade") || logLower.contains("traded") || logLower.contains("market")) {
                     tradeCount++;
                 }
             }
-
-            // فرمت کردن ریسورس‌های دریافتی به شکل تلگرافی (مثلاً: +1DAT)
-            for (java.util.Map.Entry<String, Integer> entry : resourcesMap.entrySet()) {
-                compactYields.add("+" + entry.getValue() + entry.getKey());
-            }
         }
 
-        String yieldStr = compactYields.isEmpty() ? "-" : String.join(",", compactYields);
+        String yieldStr = totalYield > 0 ? "+" + totalYield : "-";
+        String taxStr = taxLost > 0 ? "-" + taxLost : "-";
+        String tradeStr = tradeCount > 0 ? tradeCount + "Tx" : "-";
 
-        // 🏗️ خلق داشبورد ۲ خطی با فضاها و جایگاه‌های کاملاً ثابت مچ‌شده با طرح شما
         StringBuilder dashboard = new StringBuilder();
         dashboard.append(String.format("👑 %s | ", entityName));
         dashboard.append(String.format("🎲 Dice: %-3s  |  ", diceVal));
@@ -813,16 +798,13 @@ public class MainApp extends Application {
         dashboard.append(String.format("🦄 Unicorn: %-2d\n", unicornCount));
 
         dashboard.append(String.format("📊 STATUS   | "));
-        dashboard.append(String.format("🔄 Trade: %-3s  |  ", (tradeCount > 0 ? tradeCount + "Tx" : "-")));
-        dashboard.append(String.format("📦 Yield: %-12s  |  ", yieldStr));
+        dashboard.append(String.format("🔄 Trade: %-5s  |  ", tradeStr));
+        dashboard.append(String.format("📦 Yield: %-6s  |  ", yieldStr));
         dashboard.append(String.format("🕵️‍♂️ Auditor: %-7s  |  ", auditorLoc));
-        dashboard.append(String.format("🚨 Tax: %s", (taxLost > 0 ? "-" + taxLost + "C" : "-")));
+        dashboard.append(String.format("🚨 Tax: %s", taxStr));
 
-        // فرستادن مستقیم خروجی مهندسی شده به نوار سبز بالای صفحه
         dicePane.updateLiveTicker(dashboard.toString(), type);
     }
-
-
     public static void main(String[] args) {
         launch(args);
     }

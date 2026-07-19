@@ -135,8 +135,8 @@ public class PlayerInfoPane extends VBox {
 
                 if (isCurrent) {
                     ResourceType[] activeTypes = {
-                        ResourceType.DATA, ResourceType.PATENT,
-                        ResourceType.CLOUD, ResourceType.CAPITAL, ResourceType.TALENT
+                            ResourceType.DATA, ResourceType.PATENT,
+                            ResourceType.CLOUD, ResourceType.CAPITAL, ResourceType.TALENT
                     };
                     for (ResourceType type : activeTypes) {
                         int count = player.getResource(type);
@@ -166,13 +166,14 @@ public class PlayerInfoPane extends VBox {
         }
     }
 
+    // 🎯 اصلاح قطعی و واکسینه کردن رنگهای دایره پنل راست متناسب با لژند نقشه
     private Color getResourceColor(ResourceType type) {
         switch (type) {
-            case DATA:    return Color.web("#4CAF50");
-            case PATENT:  return Color.web("#FF9800");
-            case CLOUD:   return Color.web("#2196F3");
-            case CAPITAL: return Color.web("#9E9E9E");
-            case TALENT:  return Color.web("#E91E63");
+            case TALENT:  return Color.web("#90EE90"); // سبز (AI Hub)
+            case CAPITAL: return Color.web("#FFD700"); // زرد (Fintech)
+            case CLOUD:   return Color.web("#87CEEB"); // آبی (Campus)
+            case PATENT:  return Color.web("#D3D3D3"); // خاکستری (IP Quarter)
+            case DATA:    return Color.web("#FFB6C1"); // صورتی (Data Valley)
             default:      return Color.GRAY;
         }
     }

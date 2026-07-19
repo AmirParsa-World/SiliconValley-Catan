@@ -9,8 +9,17 @@ public class Vertex implements Serializable {
     private Player owner;
     private Structure structure; // Dynamic reference to MVP/Unicorn
     private final List<Edge> neighboringEdges; // Maximum of 4 paths
+    private boolean lockedByAuditor = false;
 
     private static final long serialVersionUID = 1L;
+
+    public boolean isLockedByAuditor() {
+        return this.lockedByAuditor;
+    }
+
+    public void setLockedByAuditor(boolean locked) {
+        this.lockedByAuditor = locked;
+    }
 
     // at the beginning of the game, all vertices must be null; then we set them with their setter
     //If needed, it's definitely possible, but not for all.
@@ -52,4 +61,5 @@ public class Vertex implements Serializable {
         }
         return neighbors;
     }
+
 }
