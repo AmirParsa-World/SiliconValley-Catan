@@ -691,22 +691,82 @@ public class MainApp extends Application {
         });
     }
 
-    private void showVictoryScreen() {
-        Player winner = null;
-        for (Player p : engine.getPlayers()) {
-            if (p.countPlayerPoint() >= 10) {
-                winner = p;
-                break;
-            }
-        }
+    public void showVictoryScreen() {
+        javafx.application.Platform.runLater(() -> {
+            model.Player winner = engine.getCurrentPlayer();
+            int finalScore = winner.countPlayerPoint();
+            String roleStr = winner.getRole() != null ? winner.getRole().toString() : "FOUNDER";
 
-        if (winner != null) {
-            Alert alert = new Alert(Alert.AlertType.INFORMATION);
-            alert.setTitle("Game Over!");
-            alert.setHeaderText(winner.getName() + " wins!");
-            alert.setContentText("Final score: " + winner.countPlayerPoint() + " points");
-            alert.showAndWait();
-        }
+            // 🎬 ایجاد استیج پاپ‌آپ مجزا و جذاب برای جشن پیروزی
+            javafx.stage.Stage victoryStage = new javafx.stage.Stage();
+            victoryStage.initModality(javafx.stage.Modality.APPLICATION_MODAL);
+            victoryStage.setTitle("🚀 IPO TRIUMPH - BILLION-DOLLAR EXIT!");
+
+            javafx.scene.layout.VBox layout = new javafx.scene.layout.VBox(18);
+            layout.setAlignment(javafx.geometry.Pos.CENTER);
+            layout.setStyle("-fx-padding: 30; -fx-background-color: #111116; -fx-border-color: #fbc02d; -fx-border-width: 3; -fx-border-radius: 12; -fx-background-radius: 12;");
+
+            // 👑 افکت تایتل درخشان استارتاپی
+            javafx.scene.control.Label crownLabel = new javafx.scene.control.Label("✨ UNICORN IPO COMPLETED ✨");
+            crownLabel.setFont(javafx.scene.text.Font.font("Arial", javafx.scene.text.FontWeight.BOLD, 22));
+            crownLabel.setTextFill(javafx.scene.paint.Color.web("#fbc02d"));
+
+            javafx.scene.control.Label announcement = new javafx.scene.control.Label("👑 " + winner.getName() + " [" + roleStr + "] 👑");
+            announcement.setFont(javafx.scene.text.Font.font("Arial", javafx.scene.text.FontWeight.BOLD, 18));
+            announcement.setTextFill(javafx.scene.paint.Color.WHITE);
+
+            javafx.scene.control.Label subText = new javafx.scene.control.Label("Successfully dominated the Silicon Valley!\n" +
+                    "Reached a massive $10B Valuation with " + finalScore + " Tech Points! 🚀");
+            subText.setFont(javafx.scene.text.Font.font("Arial", javafx.scene.text.FontPosture.ITALIC, 12));
+            subText.setTextFill(javafx.scene.paint.Color.LIGHTGRAY);
+            subText.setStyle("-fx-text-alignment: center;");
+
+            // 📊 جدول دستاوردهای نهایی کارنامه شما
+            javafx.scene.layout.VBox statsBox = new javafx.scene.layout.VBox(6);
+            statsBox.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            statsBox.setStyle("-fx-background-color: #1e1e26; -fx-padding: 12; -fx-background-radius: 6; -fx-max-width: 290; -fx-border-color: #333; -fx-border-radius: 6;");
+
+            javafx.scene.control.Label statsTitle = new javafx.scene.control.Label("📈 Final Startup Milestones:");
+            statsTitle.setFont(javafx.scene.text.Font.font("Arial", javafx.scene.text.FontWeight.BOLD, 12));
+            statsTitle.setTextFill(javafx.scene.paint.Color.web("#87CEEB")); // آبی روشن کلود
+
+            javafx.scene.control.Label netStat = new javafx.scene.control.Label("• Longest Network: " + engine.calculateLongestNetwork(winner) + " Tech Paths 🛣️");
+            netStat.setTextFill(javafx.scene.paint.Color.WHITE);
+            netStat.setFont(javafx.scene.text.Font.font("Arial", javafx.scene.text.FontWeight.SEMI_BOLD, 11));
+
+            javafx.scene.control.Label cardStat = new javafx.scene.control.Label("• Unspent Assets: " + winner.getTotalResources() + " Resource Cards 💳");
+            cardStat.setTextFill(javafx.scene.paint.Color.WHITE);
+            cardStat.setFont(javafx.scene.text.Font.font("Arial", javafx.scene.text.FontWeight.SEMI_BOLD, 11));
+
+            statsBox.getChildren().addAll(statsTitle, netStat, cardStat);
+
+            // 🕹️ باکس دکمه‌های کنترلی (انعطاف‌پذیری در خروج)
+            javafx.scene.layout.HBox buttonContainer = new javafx.scene.layout.HBox(12);
+            buttonContainer.setAlignment(javafx.geometry.Pos.CENTER);
+
+            // دکمه اول: تماشای نقشه (فقط پاپ‌آپ را می‌بندد تا برد را تماشا کنی)
+            javafx.scene.control.Button admireBtn = new javafx.scene.control.Button("Admire Board 🗺️");
+            admireBtn.setFont(javafx.scene.text.Font.font("Arial", javafx.scene.text.FontWeight.BOLD, 12));
+            admireBtn.setStyle("-fx-background-color: #007ACC; -fx-text-fill: white; -fx-padding: 8 15; -fx-background-radius: 5; -fx-cursor: hand;");
+            admireBtn.setOnAction(e -> victoryStage.close());
+
+            // دکمه دوم: خروج کامل از بازی
+            javafx.scene.control.Button exitBtn = new javafx.scene.control.Button("Exit App 🛑");
+            exitBtn.setFont(javafx.scene.text.Font.font("Arial", javafx.scene.text.FontWeight.BOLD, 12));
+            exitBtn.setStyle("-fx-background-color: #d32f2f; -fx-text-fill: white; -fx-padding: 8 15; -fx-background-radius: 5; -fx-cursor: hand;");
+            exitBtn.setOnAction(e -> {
+                victoryStage.close();
+                javafx.application.Platform.exit();
+            });
+
+            buttonContainer.getChildren().addAll(admireBtn, exitBtn);
+            layout.getChildren().addAll(crownLabel, announcement, subText, statsBox, buttonContainer);
+
+            javafx.scene.Scene scene = new javafx.scene.Scene(layout, 400, 360);
+            victoryStage.setScene(scene);
+            victoryStage.setResizable(false);
+            victoryStage.showAndWait();
+        });
     }
 
     public void updateUI() {

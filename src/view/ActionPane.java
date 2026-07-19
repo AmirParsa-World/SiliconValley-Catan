@@ -278,19 +278,21 @@ public class ActionPane extends VBox {
 
             isReviewingSummary = true;
         } else {
-            // 🏁 مرحله دوم: کلیک دوباره روی دکمه نارنجی -> انتقال قطعی نوبت به بازیکن بعدی
             isReviewingSummary = false;
-
-            // ریست کردن ظاهر دکمه به حالت اولیه
             endTurnBtn.setText("End Turn");
             endTurnBtn.setStyle(null);
 
             engine.setHasRolledThisTurn(false);
-            engine.nextTurn();
+            engine.nextTurn(); // 🔄 نوبت عوض میشه و انجین امتیاز رو چک می‌کنه
             app.updateUI();
 
-            // هدایت خودکار موتور بازی به سمت بررسی نوبت بعدی (انسان یا ربات)
-            app.checkAndRunBotTurn();
+            // 🎯 گام طلایی: اگر فاز بازی تموم شده بود، فورا پنجره برنده رو نشون بده
+            if (engine.getCurrentPhase() == controller.GamePhase.FINISHED) {
+                app.showVictoryScreen();
+                return; // بازی متوقف میشه و دیگه نوبت به بات بعدی نمیرسه!
+            }
+
+            app.checkAndRunBotTurn(); // اگر بازی تموم نشده بود، بات بعدی بازی می‌کنه
         }
     }
 
