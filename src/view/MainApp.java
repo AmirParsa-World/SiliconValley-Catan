@@ -858,25 +858,24 @@ public class MainApp extends Application {
                 if (auditorLoc.equals(logLine)) auditorLoc = "Moved";
             }
 
-            // Calculate aggregate resource deltas isolated for the current active player entity
-            if (logLine.contains(entityName)) {
-                if (logLower.contains("earned") || logLower.contains("yield") || logLower.contains("received") || logLower.contains("added")) {
-                    // Match and extract integer value immediately following resource gain keywords
-                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:earned|yield|received|added)\\s+(\\d+)").matcher(logLower);
-                    if (m.find()) {
-                        totalYield += Integer.parseInt(m.group(1));
-                    }
-                }
-                if (logLower.contains("lost") || logLower.contains("taxed") || logLower.contains("discarded") || logLower.contains("spent")) {
-                    // Match and extract integer value immediately following resource penalty keywords
-                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:lost|taxed|discarded|spent)\\s+(\\d+)").matcher(logLower);
-                    if (m.find()) {
-                        taxLost += Integer.parseInt(m.group(1));
-                    }
-                }
-                if (logLower.contains("trade") || logLower.contains("traded") || logLower.contains("market")) {
-                    tradeCount++;
-                }
+            // 🎯 حل مشکل تفکیک درآمد: نام بازیکن باید دقیقاً قبل از کلمه درآمد بیاید
+            java.util.regex.Matcher yieldMatcher = java.util.regex.Pattern.compile(
+                    "(?i)(?:^|\\b)" + java.util.regex.Pattern.quote(entityName) + "(?:\\s+\\[BOT\\])?\\s+(?:earned|yield|received|added)\\s+(\\d+)"
+            ).matcher(logLine);
+            if (yieldMatcher.find()) {
+                totalYield += Integer.parseInt(yieldMatcher.group(1));
+            }
+
+            // 🎯 حل مشکل تفکیک جریمه/مالیات: نام بازیکن باید دقیقاً قبل از کلمه خسارت بیاید
+            java.util.regex.Matcher taxMatcher = java.util.regex.Pattern.compile(
+                    "(?i)(?:^|\\b)" + java.util.regex.Pattern.quote(entityName) + "(?:\\s+\\[BOT\\])?\\s+(?:lost|taxed|discarded|spent)\\s+(\\d+)"
+            ).matcher(logLine);
+            if (taxMatcher.find()) {
+                taxLost += Integer.parseInt(taxMatcher.group(1));
+            }
+
+            if (logLine.contains(entityName) && (logLower.contains("trade") || logLower.contains("traded") || logLower.contains("market"))) {
+                tradeCount++;
             }
         }
 
