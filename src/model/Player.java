@@ -18,12 +18,11 @@ public class Player implements Serializable {
     private final List<Structure> structures;
     private boolean hasLongestNetwork;
 
-    // 🔗 اتصال موقت به موتور بازی (transient مانع خراب شدن سیستم Save/Load می‌شود)
+    // transient avoids breaking save/load serialization
     private transient GameEngine engine;
 
     private static final long serialVersionUID = 1L;
 
-    // 🔄 گتر و سترهای مدیریت ارتباط با موتور اصلی بازی
     public GameEngine getEngine() {
         return this.engine;
     }
@@ -39,25 +38,22 @@ public class Player implements Serializable {
         this.structures = new ArrayList<>();
         this.hasLongestNetwork = false;
 
-        // مقداردهی اولیه کیف پول منابع
+        // Init wallet with 0 for all resources
         this.wallet = new EnumMap<>(ResourceType.class);
         for (ResourceType type : ResourceType.values()) {
             this.wallet.put(type, 0);
         }
     }
 
-    // 📊 متدهای گتر اصلی بازیکن
     public String getName() { return name; }
     public String getColor() { return color; }
     public List<Structure> getStructures() { return structures; }
     public Map<ResourceType, Integer> getWallet() { return wallet; }
 
-    // 📦 دریافت موجودی یک منبع خاص
     public int getResource(ResourceType type) {
         return wallet.getOrDefault(type, 0);
     }
 
-    // 💰 محاسبه مجموع کل منابع موجود در کیف پول
     public int getTotalResources() {
         int total = 0;
         for (int amount : wallet.values()) {
@@ -66,13 +62,11 @@ public class Player implements Serializable {
         return total;
     }
 
-    // 📥 اضافه کردن منبع به کیف پول
     public void addResource(ResourceType type, int amount) {
         int currentAmount = wallet.getOrDefault(type, 0);
         this.wallet.put(type, amount + currentAmount);
     }
 
-    // 📤 کسر منبع از کیف پول همراه با کنترل خطا
     public void spendResource(ResourceType type, int amount) {
         if (wallet.getOrDefault(type, 0) < amount) {
             throw new NotEnoughResourceException("Dear player, you don't have enough " + type + " resource.");
@@ -80,28 +74,27 @@ public class Player implements Serializable {
         this.wallet.put(type, wallet.get(type) - amount);
     }
 
-    // 🏗️ اضافه کردن سازه جدید به لیست بازیکن
     public void addStructure(Structure structure) {
         structures.add(structure);
     }
 
-    // 🏆 محاسبه داینامیک امتیاز کل بازیکن (با احتساب نقش‌ها و جاده‌ها)
+    // Dynamic Victory Point calculation
     public int countPlayerPoint() {
         int points = 0;
 
-        // 🏢 ۱. محاسبه امتیاز حاصل از سازه‌ها (تغییر CompanyStructure به Structure)
+        // 1. Structure points
         if (this.structures != null) {
-            for (Structure structure : this.structures) { // 👈 این خط اصلاح شد
+            for (Structure structure : this.structures) {
                 points += structure.getPoint();
             }
         }
 
-        // 🛣️ ۲. محاسبه امتیاز بابت داشتن بزرگترین شبکه (پاداش جاده‌ها)
+        // 2. Longest network bonus
         if (this.hasLongestNetwork) {
-            points += 2; // امتیاز بابت Longest Network
+            points += 2;
         }
 
-        // 🎯 گام طلایی: کسر ۱ امتیاز در صورت انتخاب هر نقشی بجای NONE
+        // Perk balancing: choosing a role costs 1 VP
         if (this.role != null && this.role != FounderRole.NONE) {
             points -= 1;
         }
@@ -118,7 +111,7 @@ public class Player implements Serializable {
 
     public void setRole(FounderRole role) { this.role = role; }
 
-    // 💸 سوزاندن تصادفی کارت‌ها (استفاده در جریمه‌های مالی و تاس ۷ بازرس)
+    // Drops random cards for regulatory audits (dice 7)
     public void discardRandomResources(int amount) {
         int discarded = 0;
         while (discarded < amount && getTotalResources() > 0) {

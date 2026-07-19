@@ -116,10 +116,10 @@ public class PlayerInfoPane extends VBox {
                 Player player = players.get(i);
                 boolean isCurrent = player.equals(current);
 
-                // 🎯 استخراج لیبل نام بازیکن
+                // Fetch the player name label component
                 Label nameLabel = (Label) card.getChildren().get(0);
 
-                // 👑 اعمال افکت تاج درخشان و نمایش پویای طول جاده‌ها
+                // Append crown icon and dynamic road length if player holds the longest network
                 if (player.isHasLongestNetwork()) {
                     nameLabel.setText(player.getName() + " 👑 (Road: " + engine.calculateLongestNetwork(player) + ")");
                 } else {
@@ -172,14 +172,14 @@ public class PlayerInfoPane extends VBox {
         }
     }
 
-    // 🎯 اصلاح قطعی و واکسینه کردن رنگهای دایره پنل راست متناسب با لژند نقشه
+    // Map resource types to hex colors corresponding to the game board map legend
     private Color getResourceColor(ResourceType type) {
         switch (type) {
-            case TALENT:  return Color.web("#90EE90"); // سبز (AI Hub)
-            case CAPITAL: return Color.web("#FFD700"); // زرد (Fintech)
-            case CLOUD:   return Color.web("#87CEEB"); // آبی (Campus)
-            case PATENT:  return Color.web("#D3D3D3"); // خاکستری (IP Quarter)
-            case DATA:    return Color.web("#FFB6C1"); // صورتی (Data Valley)
+            case TALENT:  return Color.web("#90EE90"); // Green (AI Hub)
+            case CAPITAL: return Color.web("#FFD700"); // Yellow (Fintech)
+            case CLOUD:   return Color.web("#87CEEB"); // Blue (Campus)
+            case PATENT:  return Color.web("#D3D3D3"); // Gray (IP Quarter)
+            case DATA:    return Color.web("#FFB6C1"); // Pink (Data Valley)
             default:      return Color.GRAY;
         }
     }

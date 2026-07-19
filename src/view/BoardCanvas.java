@@ -48,7 +48,7 @@ public class BoardCanvas extends StackPane {
         int sectorRows = gameMap.getSectors().length;
         int sectorCols = gameMap.getSectors()[0].length;
 
-        // 🔮 محاسبه دوطرفه ابعاد خانه‌ها و گره‌ها برای فیت شدن بی‌نقص در صفحه
+        // Dynamically scale tile and node sizes based on board rows to ensure clean UI fitting
         if (sectorRows <= 3) {
             this.SQUARE_SIZE = 140;
             this.VERTEX_SIZE = 28;
@@ -59,9 +59,8 @@ public class BoardCanvas extends StackPane {
             this.SQUARE_SIZE = 100;
             this.VERTEX_SIZE = 24;
         } else {
-            // برای مپ‌های ۶ تا ۱۰، کل عرض نقشه را روی ۵۰۰ پیکسل فیکس نگه می‌دارد
+            // Caps max width layout for extra large matrices (6x6 up to 10x10)
             this.SQUARE_SIZE = 500 / sectorRows;
-            // گره‌ها هم متناسب با ابعاد سکتور ریزتر می‌شوند تا فضا شلوغ نشود
             this.VERTEX_SIZE = Math.max(12, 120 / sectorRows);
         }
 
@@ -106,7 +105,7 @@ public class BoardCanvas extends StackPane {
     private void handleSetupMVP(double mouseX, double mouseY) {
         Vertex clickedVertex = findVertexAt(mouseX, mouseY);
         if (clickedVertex != null && !clickedVertex.hasStructure()
-            && app.getEngine().isValidStructurePlacement(clickedVertex)) {
+                && app.getEngine().isValidStructurePlacement(clickedVertex)) {
             selectedVertex = clickedVertex;
             buildMode = BuildMode.SETUP_ROAD;
             app.getActionPane().updateStatus("Now click an edge\nconnected to your MVP");
@@ -121,7 +120,7 @@ public class BoardCanvas extends StackPane {
                 Player current = app.getEngine().getCurrentPlayer();
 
                 app.getEngine().setupPlaceMVPAndPartnership(
-                    app.getEngine().getCurrentPlayer(), selectedVertex, clickedEdge);
+                        app.getEngine().getCurrentPlayer(), selectedVertex, clickedEdge);
 
                 app.getEngine().log("🚀 " + current.getName() + " placed initial MVP and starting Partnership.");
 
@@ -139,10 +138,9 @@ public class BoardCanvas extends StackPane {
         if (clickedVertex == null) return;
         Player current = app.getEngine().getCurrentPlayer();
 
-        // ❌ حالت اول: بررسی قانون فاصله (ساخت روی یا کنار یک سازه دیگر) از طریق جاده‌های همسایه
+        // 1. Distance rule check: Cannot build directly adjacent to another structure
         for (Edge edge : clickedVertex.getNeighboringEdges()) {
             if (edge != null) {
-                // پیدا کردن رأس همسایه از روی جاده
                 Vertex neighbor = (edge.getU() == clickedVertex) ? edge.getV() : edge.getU();
 
                 if (neighbor != null && neighbor.hasStructure()) {
@@ -154,7 +152,7 @@ public class BoardCanvas extends StackPane {
             }
         }
 
-        // ❌ حالت دوم: بررسی اتصال به جاده‌ها (جای نادرست و دور)
+        // 2. Connectivity check: Must connect to at least one owned road path
         boolean isConnectedToRoad = false;
         for (Edge edge : clickedVertex.getNeighboringEdges()) {
             if (edge != null && current.equals(edge.getOwner())) {
@@ -169,12 +167,10 @@ public class BoardCanvas extends StackPane {
             return;
         }
 
-        // 💰 حالت سوم و چهارم: ارسال به موتور بازی جهت بررسی منابع مالی
+        // 3. Financial validation: Forward asset verification to engine
         try {
             app.getEngine().buildMVP(current, clickedVertex);
-
             app.getEngine().log("🏗️ " + current.getName() + " successfully deployed a new MVP.");
-
             app.getEngine().updateLongestNetworkAward();
             buildMode = BuildMode.NONE;
             app.getActionPane().updateStatus("MVP built successfully! 🎉");
@@ -186,13 +182,12 @@ public class BoardCanvas extends StackPane {
         }
     }
 
-    // ۲. مدیریت دقیق خطاهای ساخت جاده (Partnership)
     private void handleBuildPartnership(double mouseX, double mouseY) {
         Edge clickedEdge = findEdgeAt(mouseX, mouseY);
         if (clickedEdge == null) return;
         Player current = app.getEngine().getCurrentPlayer();
 
-        // ❌ حالت اول: جاده قبلاً گرفته شده
+        // 1. Validation check: Path must not be claimed already
         if (clickedEdge.getOwner() != null) {
             app.getActionPane().updateStatus("Error: Invalid Edge! 🛑\nThis partnership path is already owned by " + clickedEdge.getOwner().getName());
             buildMode = BuildMode.NONE;
@@ -200,7 +195,7 @@ public class BoardCanvas extends StackPane {
             return;
         }
 
-        // ❌ حالت دوم: بررسی اتصال جاده به سازه‌ها یا جاده‌های دیگر بازیکن - جای نادرست و دور
+        // 2. Connectivity check: Must hook into player's existing cluster or roads
         boolean isConnected = false;
         Vertex u = clickedEdge.getU();
         Vertex v = clickedEdge.getV();
@@ -222,12 +217,10 @@ public class BoardCanvas extends StackPane {
             return;
         }
 
-        // 💰 حالت سوم و چهارم: بررسی منابع در بک‌اَند
+        // 3. Asset validation: Delegate resource check to backend engine
         try {
             app.getEngine().buildPartnership(current, clickedEdge);
-
             app.getEngine().log(" Road Secured: " + current.getName() + " established a new Partnership path.");
-
             app.getEngine().updateLongestNetworkAward();
             buildMode = BuildMode.NONE;
             app.getActionPane().updateStatus("Partnership built successfully! 🛣️");
@@ -239,13 +232,12 @@ public class BoardCanvas extends StackPane {
         }
     }
 
-    // ۳. مدیریت دقیق خطاهای ارتقا به تک‌شاخ (Unicorn)
     private void handleUpgradeUnicorn(double mouseX, double mouseY) {
         Vertex clickedVertex = findVertexAt(mouseX, mouseY);
         if (clickedVertex == null) return;
         Player current = app.getEngine().getCurrentPlayer();
 
-        // ❌ حالت اول: کلیک روی جای خالی یا سازه دیگران یا تک‌شاخ قبلی - جای نادرست
+        // 1. Target validation: Vertex must hold an un-upgraded MVP belonging to the current player
         boolean hasStructure = clickedVertex.hasStructure();
         boolean isMVP = hasStructure && clickedVertex.getStructure() instanceof MVP;
         boolean isOwner = hasStructure && current.equals(clickedVertex.getOwner());
@@ -263,13 +255,10 @@ public class BoardCanvas extends StackPane {
             return;
         }
 
-        // 💰 حالت سوم و چهارم: بررسی منابع ارتقا در بک‌اَند
+        // 2. Evolution check: Verify materials and apply upgrade via backend engine
         try {
             app.getEngine().upgradeToUnicorn(current, clickedVertex);
-
             app.getEngine().log("🦄✨ Valuation Spike! " + current.getName() + " upgraded an MVP into a Tech Unicorn!");
-
-
             app.getEngine().updateLongestNetworkAward();
             buildMode = BuildMode.NONE;
             app.getActionPane().updateStatus("Upgraded to Unicorn successfully! 🦄✨");
@@ -408,7 +397,6 @@ public class BoardCanvas extends StackPane {
 
             app.getEngine().log("🕵️‍♂️ Auditor Deployed: " + current.getName() + " moved the Regulatory Inspector to Sector [" + row + "," + col + "].");
 
-
             buildMode = BuildMode.NONE;
             app.getActionPane().updateStatus("Auditor moved!");
             app.updateUI();
@@ -467,6 +455,7 @@ public class BoardCanvas extends StackPane {
                 app.getActionPane().updateStatus("Hacker CEO selected!\n-1 point, 3:1 trade rate");
                 break;
             case "VC Funded":
+                player.setRole(FounderRole.VC_FUNDED);
                 player.setRole(FounderRole.VC_FUNDED);
                 app.getActionPane().updateStatus("VC Funded selected!\n-1 point, 9 card limit");
                 break;
@@ -530,7 +519,7 @@ public class BoardCanvas extends StackPane {
         gc.setLineWidth(1.5);
         gc.strokeRect(x, y, SQUARE_SIZE, SQUARE_SIZE);
 
-        // 🎯 عدد تاس دقیقاً در مرکز کاشی بدون هیچ مزاحمی
+        // Render activation token number dead center inside the tile
         double fontSize = SQUARE_SIZE * 0.25;
         gc.setFont(Font.font("Arial", FontWeight.BOLD, fontSize));
         gc.setFill(Color.BLACK);
@@ -538,12 +527,12 @@ public class BoardCanvas extends StackPane {
         String numStr = String.valueOf(sector.getActivationNumber());
         gc.fillText(numStr, x + (SQUARE_SIZE / 2.0) - (fontSize * 0.3 * numStr.length()), y + (SQUARE_SIZE / 2.0) + (fontSize * 0.3));
 
-        // ⚠️ به جای پوشاندن کل صفحه، یک اورلی بسیار ملایم و یک تگ شیک در گوشه بالا-چپ می‌زنیم
+        // Apply a clean translucent tint overlay and text badge for locked audited sectors
         if (sector.isBlocked()) {
-            gc.setFill(Color.rgb(255, 0, 0, 0.12)); // هاله قرمز بسیار ملایم
+            gc.setFill(Color.rgb(255, 0, 0, 0.12));
             gc.fillRect(x, y, SQUARE_SIZE, SQUARE_SIZE);
 
-            gc.setFill(Color.web("#B22222")); // قرمز تیره پخته
+            gc.setFill(Color.web("#B22222"));
             gc.setFont(Font.font("Arial", FontWeight.BOLD, Math.max(8, SQUARE_SIZE * 0.12)));
             gc.fillText("⚠️ LOCKED", x + 6, y + (SQUARE_SIZE * 0.2));
         }
@@ -624,12 +613,11 @@ public class BoardCanvas extends StackPane {
             gc.strokeOval(x - size / 2.0, y - size / 2.0, size, size);
 
             gc.setFill(Color.WHITE);
-            // تنظیم داینامیک سایز فونت حروف M و U
             gc.setFont(Font.font("Arial", FontWeight.BOLD, size * 0.6));
             String label = (vertex.getStructure() instanceof Unicorn) ? "U" : "M";
             gc.fillText(label, x - (size * 0.2), y + (size * 0.2));
         } else {
-            // گره‌های خالی و کوچک نقشه
+            // Unoccupied node point
             double emptySize = size * 0.75;
             gc.setFill(Color.WHITE);
             gc.fillOval(x - emptySize / 2.0, y - emptySize / 2.0, emptySize, emptySize);
@@ -649,39 +637,38 @@ public class BoardCanvas extends StackPane {
             double x = col * SQUARE_SIZE + PADDING;
             double y = row * SQUARE_SIZE + PADDING;
 
-            // 🚨 ۱. رسم کادر عجیب و خفن دور سکتور (خط ضخیم قرمز پلیسی)
+            // 1. Heavy red line border for regulatory alert styling
             gc.setStroke(Color.web("#B22222"));
             gc.setLineWidth(4);
             gc.strokeRect(x + 2, y + 2, SQUARE_SIZE - 4, SQUARE_SIZE - 4);
 
-            // 🚧 ۲. رسم خط چین دوم زرد/نارنجی داخلی برای القای حس نوار خطر (Crime Scene)
+            // 2. Inner danger-tape dashed sequence
             gc.setStroke(Color.ORANGE);
             gc.setLineWidth(1.5);
             gc.setLineDashes(4, 4);
             gc.strokeRect(x + 5, y + 5, SQUARE_SIZE - 10, SQUARE_SIZE - 10);
-            gc.setLineDashes(); // ریست کردن خط‌چین برای بقیه متدها
+            gc.setLineDashes();
 
-            // 🕵️‍♂️ ۳. محاسبه موقعیت کلاه کارآگاه در گوشه بالا-راست سکتور (برای عدم تداخل با عدد مرکز)
+            // 3. Offset detective hat icon to the top-right corner to prevent central token overlap
             double iconX = x + SQUARE_SIZE - (SQUARE_SIZE * 0.22);
             double iconY = y + (SQUARE_SIZE * 0.22);
 
-            // اندازه داینامیک اجزای کلاه متناسب با سایز مپ
             double baseWidth = SQUARE_SIZE * 0.26;
             double crownWidth = baseWidth * 0.65;
 
-            // الف) سایه کلاه برای جذابیت بصری سه‌بعدی
+            // Hat base shadow
             gc.setFill(Color.rgb(0, 0, 0, 0.25));
             gc.fillRect(iconX - (baseWidth / 2.0), iconY + 1, baseWidth, 3);
             gc.fillRoundRect(iconX - (crownWidth / 2.0), iconY - 10, crownWidth, 11, 4, 4);
 
-            // ب) لبه‌ی کلاه کارگاهی (تیره کاربنی)
+            // Hat brim
             gc.setFill(Color.web("#2F4F4F"));
             gc.fillRect(iconX - (baseWidth / 2.0), iconY, baseWidth, 3);
 
-            // ج) بدنه اصلی کلاه (Crown)
+            // Hat crown shape
             gc.fillRoundRect(iconX - (crownWidth / 2.0), iconY - 11, crownWidth, 12, 5, 5);
 
-            // د) روبان قرمز روی کلاه کارآگاه
+            // Decorative band
             gc.setFill(Color.RED);
             gc.fillRect(iconX - (crownWidth / 2.0), iconY, crownWidth, 1.5);
         }

@@ -79,10 +79,8 @@ public class ActionPane extends VBox {
         loadGameBtn.setOnAction(e -> app.triggerManualLoad());
         loadGameBtn.setStyle("-fx-background-color: #9C27B0; -fx-text-fill: white;");
 
-        // 🎨 ساخت کارت راهنمای هوشمند و شیک سکتورها
         VBox legendBox = createLegendBox();
 
-        // 🏁 چینش نهایی: کامپوننت راهنما دقیقاً در انتهای پنل اضافه شد
         this.getChildren().addAll(title, phaseLabel, statusLabel, startSetupBtn, rollDiceBtn,
                 buildMVPBtn, upgradeUnicornBtn, buildPartnershipBtn, endTurnBtn, saveGameBtn, loadGameBtn, legendBox);
 
@@ -96,8 +94,7 @@ public class ActionPane extends VBox {
         return btn;
     }
 
-    // 🔮 متد کمکی برای خلق کارت راهنمای رنگ‌ها با یوآی کاملاً مدرن و خوانا
-// 🔮 متد اصلاح‌شده برای خلق کارت راهنما با چیدمان کاملاً متراکم و قرینه
+    // Creates the visual color legend for different tech sectors
     private VBox createLegendBox() {
         VBox box = new VBox(6);
         box.setStyle("-fx-padding: 10; -fx-background-color: #ffffff; -fx-background-radius: 6; -fx-border-color: #ddd; -fx-border-radius: 6; -fx-margin-top: 10;");
@@ -107,7 +104,6 @@ public class ActionPane extends VBox {
         titleLabel.setStyle("-fx-text-fill: #333;");
         box.getChildren().add(titleLabel);
 
-        // 🎯 چیدمان برعکس شد؛ دیتا بالا آمد و رگیولیتوری زون دقیقاً همان پایین حفظ شد
         String[][] sectorsInfo = {
                 {"Data (Valley)", "#FFB6C1"},
                 {"Patent (IP Quarter)", "#D3D3D3"},
@@ -121,7 +117,6 @@ public class ActionPane extends VBox {
             HBox row = new HBox(8);
             row.setStyle("-fx-alignment: center-left;");
 
-            // ساخت یک مربع رنگی کوچک و شیک به عنوان اندیکاتور رنگی
             Rectangle colorIndicator = new Rectangle(12, 12);
             colorIndicator.setArcWidth(4);
             colorIndicator.setArcHeight(4);
@@ -207,10 +202,8 @@ public class ActionPane extends VBox {
 
     private void rollDice() {
         try {
-            // ❌ خط حذف شده: humanStartLogSize = engine.getGameLog().size();
-            // 💡 دلیل حذف: این خط باعث می‌شد تراکنش‌های مالی که قبل از تاس ریختن با مارکت انجام دادی از لاگ حذف شوند!
-            // مقدار اصلی در متد initTurnLogStart به درستی در ابتدای نوبت قفل شده است.
-
+            // Note: humanStartLogSize tracking is locked early in initTurnLogStart
+            // to prevent pre-roll trades from being wiped from the turn summary.
             Dice dice = new Dice();
             int total = engine.rollDice(dice);
 
@@ -220,7 +213,6 @@ public class ActionPane extends VBox {
             java.util.Map<Player, Integer> discardMap = engine.distributeResources(total);
             engine.updateLongestNetworkAward();
 
-            // 🎯 آپدیت سراسری لایه گرافیکی (که حالا خلاصه‌ساز زنده شما را هم بروز می‌کند)
             app.updateUI();
 
             if (total == 7) {
@@ -237,40 +229,30 @@ public class ActionPane extends VBox {
     private void buildMVP() {
         app.getBoardCanvas().enterBuildMVPMode();
         app.updateUI();
-        app.getDicePane().updateLiveTicker
-                ("🏗️ Click the map to deploy your new MVP structure!", "BUILD");
+        app.getDicePane().updateLiveTicker("🏗️ Click the map to deploy your new MVP structure!", "BUILD");
     }
 
     private void upgradeToUnicorn() {
         app.getBoardCanvas().enterUpgradeUnicornMode();
         app.updateUI();
-        app.getDicePane().updateLiveTicker
-                ("🦄 Select one of your MVPs to upgrade to a Tech Unicorn!", "BUILD");
+        app.getDicePane().updateLiveTicker("🦄 Select one of your MVPs to upgrade to a Tech Unicorn!", "BUILD");
     }
 
     private void buildPartnership() {
         app.getBoardCanvas().enterBuildPartnershipMode();
         app.updateUI();
-        app.getDicePane().updateLiveTicker
-                ("🛣️ Click an empty road edge to secure a new Partnership!", "BUILD");
+        app.getDicePane().updateLiveTicker("🛣️ Click an empty road edge to secure a new Partnership!", "BUILD");
     }
 
-// ۱. ابتدا یک فیلد برای ثبت شروع لاگ پلیر واقعی در کلاس ActionPane تعریف کن یا به صورت داینامیک هندل کن
-// بهترین کار این است که متد endTurn را به این شکل ویرایش کنی:
-
+    // Two-step turn finalization: shows round logs before confirmation
     public void endTurn() {
         if (!isReviewingSummary) {
-            // 🏁 مرحله اول: لغو فاز ساخت و نمایش پکیج نهایی خلاصه عملکرد چندخطی شما
             app.getBoardCanvas().cancelBuildMode();
-
-            // فراخوانی متد خلاصه‌ساز برای نمایش نهایی کارهای این دور شما
             app.displayTurnSummary(humanStartLogSize, engine.getCurrentPlayer().getName(), "BUILD");
 
-            // 🎨 تغییر متن دکمه به وضعیت تایید برای واضح شدن فرآیند دو مرحله‌ای
             endTurnBtn.setText("Confirm End ➡️");
-            endTurnBtn.setStyle("-fx-background-color: #FF9800; -fx-text-fill: white; -fx-font-weight: bold;"); // نارنجی استارتاپی
+            endTurnBtn.setStyle("-fx-background-color: #FF9800; -fx-text-fill: white; -fx-font-weight: bold;");
 
-            // قفل کردن موقت دکمه‌های اکشن جهت جلوگیری از حرکت ناخواسته
             rollDiceBtn.setDisable(true);
             buildMVPBtn.setDisable(true);
             upgradeUnicornBtn.setDisable(true);
@@ -283,16 +265,15 @@ public class ActionPane extends VBox {
             endTurnBtn.setStyle(null);
 
             engine.setHasRolledThisTurn(false);
-            engine.nextTurn(); // 🔄 نوبت عوض میشه و انجین امتیاز رو چک می‌کنه
+            engine.nextTurn();
             app.updateUI();
 
-            // 🎯 گام طلایی: اگر فاز بازی تموم شده بود، فورا پنجره برنده رو نشون بده
             if (engine.getCurrentPhase() == controller.GamePhase.FINISHED) {
                 app.showVictoryScreen();
-                return; // بازی متوقف میشه و دیگه نوبت به بات بعدی نمیرسه!
+                return;
             }
 
-            app.checkAndRunBotTurn(); // اگر بازی تموم نشده بود، بات بعدی بازی می‌کنه
+            app.checkAndRunBotTurn();
         }
     }
 
@@ -310,7 +291,7 @@ public class ActionPane extends VBox {
         return endTurnBtn;
     }
 
-    // 🚩 متد جدید برای بازنشانی دقیق لاگ‌ها در ثانیه اول شروع نوبت شما
+    // Captures the log size exactly at the start of a human turn
     public void initTurnLogStart(int currentLogSize) {
         this.humanStartLogSize = currentLogSize;
         this.isReviewingSummary = false;

@@ -27,23 +27,22 @@ public class Market implements Serializable {
         for (ResourceType type : ResourceType.values()) {
             if (type != ResourceType.REGULATORY) {
                 currentPrices.put(type, INITIAL_PRICE);
-                stagnationTrackers.put(type, 0); // 0 rounds of inactivity to start
+                stagnationTrackers.put(type, 0);
             }
         }
     }
 
-    // 🔄 متد پشتیبان برای خرید (جهت برطرف شدن ارور فایلهای تست قدیمی)
+    // Legacy support for older test suites
     public void buyResource(Player player, ResourceType resource) {
-        // متد اصلی را صدا می‌زند و انجین را از پلیر می‌گیرد (اگر پلیر انجین نداشت، null پاس می‌دهد)
         buyResource(player, resource, player.getEngine());
     }
 
-    // 🔄 متد پشتیبان برای فروش (جهت برطرف شدن ارور فایلهای تست قدیمی)
+    // Legacy support for older test suites
     public void sellResource(Player player, ResourceType resource) {
         sellResource(player, resource, player.getEngine());
     }
 
-    // 📈 Buying an asset: Increases market price, resets stagnation warning
+    // Buy asset: pumps price, resets stagnation clock
     public void buyResource(Player player, ResourceType resource, GameEngine engine) {
         validateResource(resource);
 
@@ -55,21 +54,13 @@ public class Market implements Serializable {
         adjustPrice(resource, 1);
         stagnationTrackers.put(resource, 0);
 
-        // 🎯 حالا انجین رو مستقیم داری و هیچ‌وقت null نمیشه!
-        engine.log(player.getName() + " traded: bought 1 " + resource.getDisplayName());
-
         if (engine != null) {
-            engine.log(player.getName() + " traded...");
+            engine.log(player.getName() + " traded: bought 1 " + resource.getDisplayName());
         }
     }
 
-    // 📉 Selling an asset: Decreases market price, resets stagnation warning
+    // Sell asset: dumps price, resets stagnation clock
     public void sellResource(Player player, ResourceType resource, GameEngine engine) {
-
-        if (engine != null) {
-            engine.log(player.getName() + " traded...");
-        }
-
         validateResource(resource);
         int currentMarketPrice = currentPrices.get(resource);
 
@@ -79,20 +70,20 @@ public class Market implements Serializable {
         adjustPrice(resource, -1);
         stagnationTrackers.put(resource, 0);
 
-        // 🎯 استفاده مستقیم از انجین بدون واسطه
-        engine.log(player.getName() + " traded: sold 1 " + resource.getDisplayName());
+        if (engine != null) {
+            engine.log(player.getName() + " traded: sold 1 " + resource.getDisplayName());
+        }
     }
 
-    // ⏳ The Stagnation Clock: Triggered by the coordinator layer at the end of every full round
+    // Stagnation clock: drops prices if resources sit dead for 3 rounds
     public void incrementRoundTick() {
         for (ResourceType resource : currentPrices.keySet()) {
             int consecutiveQuietRounds = stagnationTrackers.get(resource) + 1;
             stagnationTrackers.put(resource, consecutiveQuietRounds);
 
-            // 🚨 Round 3 Warning hit! Automatically drop price by 1 unit
             if (consecutiveQuietRounds >= STAGNATION_LIMIT) {
                 adjustPrice(resource, -1);
-                stagnationTrackers.put(resource, 0); // Clear counter after price drop
+                stagnationTrackers.put(resource, 0);
                 System.out.println("⚠️ MARKET ALERT: " + resource + " price dropped due to 3 rounds of stagnation!");
             }
         }
@@ -114,8 +105,7 @@ public class Market implements Serializable {
         return currentPrices.getOrDefault(resource, INITIAL_PRICE);
     }
 
-
-    // 🏦 تبدیل ۳ به ۱ یا ۴ به ۱ منابع بدون دخالت کپیتال طبق داک بازی
+    // Direct 3:1 or 4:1 resource swapping bypassing Capital
     public void executeGenericMarketTrade(Player player, ResourceType offer, ResourceType receive) {
         validateResource(offer);
         validateResource(receive);
@@ -129,15 +119,15 @@ public class Market implements Serializable {
         player.spendResource(offer, requiredRate);
         player.addResource(receive, 1);
 
-        player.getEngine().log(player.getName() + " traded resources");
+        if (player.getEngine() != null) {
+            player.getEngine().log(player.getName() + " traded resources directly via maritime-style market");
+        }
     }
 
-    // 💰 قیمت فروش منبع به مارکت (برگرفته از قیمت جاری سیستم باران)
     public int getSellPrice(ResourceType resource) {
         return getPrice(resource);
     }
 
-    // 🛒 قیمت خرید منبع از مارکت (برگرفته از قیمت جاری سیستم باران)
     public int getBuyPrice(ResourceType resource) {
         return getPrice(resource);
     }

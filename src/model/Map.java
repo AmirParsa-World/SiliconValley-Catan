@@ -20,7 +20,7 @@ public class Map implements Serializable {
     private static final long serialVersionUID = 1L;
 
     public Map() {
-        this(5, 5); // basic map game.
+        this(5, 5); // default grid size
     }
 
     public Map(int sectorRows, int sectorCols) {
@@ -56,50 +56,46 @@ public class Map implements Serializable {
 
     private void generateRandomSectors() {
         int totalSectors = sectorRows * sectorCols;
-        int activeSectors = totalSectors - 1; // یکی از خانه‌ها همیشه برای رگولاتور (بازرس) است
+        int activeSectors = totalSectors - 1; // 1 sector is always reserved for the tax auditor
 
         List<ResourceType> resourcePool = new ArrayList<>();
 
-        // ۵ منبع فعال بازی
         ResourceType[] activeTypes = {
                 ResourceType.TALENT, ResourceType.CAPITAL,
                 ResourceType.CLOUD, ResourceType.PATENT, ResourceType.DATA
         };
 
-        // ⚖️ محاسبه عادلانه سهم هر منبع بر اساس ابعاد نقشه
-        int baseCount = activeSectors / activeTypes.length; // سهم مساوی پایه
-        int remainder = activeSectors % activeTypes.length; // باقی‌مانده تقسیم برای توزیع رندوم
+        // Balance resources dynamically based on map size
+        int baseCount = activeSectors / activeTypes.length;
+        int remainder = activeSectors % activeTypes.length;
 
-        // ۱. اضافه کردن منابع پایه به استخر
         for (ResourceType type : activeTypes) {
             for (int i = 0; i < baseCount; i++) {
                 resourcePool.add(type);
             }
         }
 
-        // ۲. توزیع کاملاً عادلانه باقی‌مانده‌ها (به هر کدام حداکثر ۱ کارت اضافه می‌شود تا بالانس به هم نخورد)
+        // Evenly spread out the leftover slots so things stay balanced
         List<ResourceType> shuffleTypes = new ArrayList<>(Arrays.asList(activeTypes));
         Collections.shuffle(shuffleTypes);
         for (int i = 0; i < remainder; i++) {
             resourcePool.add(shuffleTypes.get(i));
         }
-        Collections.shuffle(resourcePool); // مخلوط کردن نهایی منابع
+        Collections.shuffle(resourcePool);
 
-
-        // 🎲 ۳. تولید داینامیک اعداد تاس بر اساس اولویت احتمالات ریاضی (بدون عدد ۷)
+        // Weight token generation using standard Catan odds (excluding 7)
         List<Integer> numberPool = new ArrayList<>();
-        // ترتیب اولویت بر اساس احتمال بالای تاس (ابتدا بهترین خانه‌ها مثل ۶ و ۸، سپس معمولی‌ها و در آخر ۲ و ۱۲)
         int[] priorityNumbers = {6, 8, 5, 9, 4, 10, 3, 11, 2, 12};
 
         for (int i = 0; i < activeSectors; i++) {
-            // استفاده از عملگر % برای چرخشِ عادلانه روی آرایه اولویت‌ها در هر ابعادی
+            // Safe wrap-around using modulo for any map scale
             numberPool.add(priorityNumbers[i % priorityNumbers.length]);
         }
-        Collections.shuffle(numberPool); // مخلوط کردن نهایی اعداد تاس برای تصادفی شدن نقشه
+        Collections.shuffle(numberPool);
 
-        // فرستادن اطلاعات برای چیدمان نهایی روی ماتریکس نقشه
         fillSectorMatrix(resourcePool, numberPool);
     }
+
     private void fillSectorMatrix(List<ResourceType> resourcePool, List<Integer> numberPool) {
         int regulatoryRow = this.auditor.getRow();
         int regulatoryCol = this.auditor.getCol();

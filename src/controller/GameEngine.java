@@ -14,20 +14,17 @@ public class GameEngine implements Serializable {
     private int currentPlayerIndex;
     private int currentRound;
     private boolean hasRolledThisTurn;
-    private final Map gameMap; // 👈 نقشه ثابت بازی
+    private final Map gameMap;
 
-    // 🔄 فیلدهای مدیریت فاز رفت و برگشت (Snake Draft)
+    // Snake draft tracking for setup phase
     private GamePhase currentPhase;
     private final List<Integer> setupOrder = new ArrayList<>();
     private int setupStep = 0;
 
-    // needed for save and load the game.
     private static final long serialVersionUID = 1L;
-
-    // needed for giving a log about gameFlow
     private final List<String> gameLog = new ArrayList<>();
 
-    // 🏗️ Constructor (مپ را به عنوان فیلد اصلی بازی تحویل می‌گیرد)
+    // Init core game components
     public GameEngine(List<Player> players, Market market, Map gameMap) {
         this.players = players != null ? players : new ArrayList<>();
         this.market = market;
@@ -35,26 +32,20 @@ public class GameEngine implements Serializable {
         this.currentPlayerIndex = 0;
         this.currentRound = 1;
         this.hasRolledThisTurn = false;
-        this.currentPhase = GamePhase.SETUP; // بازی همیشه با فاز ست‌آپ شروع می‌شود
+        this.currentPhase = GamePhase.SETUP;
 
         initializeSetupOrder();
     }
 
-    /**
-     * تولید لیست نوبت‌های فاز اول به صورت Snake Draft (رفت و برگشت)
-     * برای ۲ بازیکن: [0, 1, 1, 0]
-     * برای ۳ بازیکن: [0, 1, 2, 2, 1, 0]
-     */
+    // Generates snake draft order (e.g., [0, 1, 1, 0] for 2 players)
     private void initializeSetupOrder() {
         setupOrder.clear();
         int numberOfPlayers = players.size();
         if (numberOfPlayers == 0) return;
 
-        // مسیر رفت
         for (int i = 0; i < numberOfPlayers; i++) {
             setupOrder.add(i);
         }
-        // مسیر برگشت
         for (int i = numberOfPlayers - 1; i >= 0; i--) {
             setupOrder.add(i);
         }
@@ -75,7 +66,7 @@ public class GameEngine implements Serializable {
         return this.players;
     }
 
-    // 🎲 تاس ریختن قانونمند
+    // Handles turn-based dice rolling
     public int rollDice(Dice dice) {
         if (hasRolledThisTurn) {
             throw new AlreadyRolledException("Dear " + getCurrentPlayer().getName() + ", you have already rolled the dice in this turn!");
@@ -83,13 +74,11 @@ public class GameEngine implements Serializable {
         int rollResult = dice.roll();
         hasRolledThisTurn = true;
 
-        // 📝 ثبت لاگ تاس
         log(getCurrentPlayer().getName() + " rolled a " + rollResult + " 🎲");
-
         return rollResult;
     }
 
-    // 🤝 تجارت آزاد بازیکن با بازیکن
+    // Player-to-player free trading
     public void executePeerTrade(Player sender, Player receiver,
                                  ResourceType offeredItem, int offeredAmount,
                                  ResourceType requestedItem, int requestedAmount) {
@@ -113,7 +102,6 @@ public class GameEngine implements Serializable {
 
         System.out.println("🔄 TRANSACTION SUCCESS: " + sender.getName() + " traded with " + receiver.getName());
 
-        // ثبت لاگ معامله
         log("🔄 TRADE: " + sender.getName() + " traded with " + receiver.getName() +
                 " (Offered: " + offeredAmount + " " + offeredItem + " | Requested: " + requestedAmount + " " + requestedItem + ")");
     }
@@ -145,7 +133,7 @@ public class GameEngine implements Serializable {
         return false;
     }
 
-    // 🔄 مدیریت نوبت‌ها
+    // Handles phase changes and turn switching
     public void nextTurn() {
         if (players.isEmpty()) return;
 
@@ -228,7 +216,7 @@ public class GameEngine implements Serializable {
         log("🎲 Dice rolled: " + rollValue + ". Distributing resources...");
         java.util.Map<Player, Integer> yields = new java.util.HashMap<>();
 
-        // 🛡️ مجموعه کمکی برای ثبت گره‌هایی که در این نوبت کارت تولید کرده‌اند (جلوگیری از واریز دوگانه)
+        // Double-dip protection for vertices generating resources this turn
         java.util.Set<Vertex> processedVertices = new java.util.HashSet<>();
 
         for (Sector[] row : this.gameMap.getSectors()) {
@@ -250,7 +238,6 @@ public class GameEngine implements Serializable {
                                 continue;
                             }
 
-                            // 🎯 گام طلایی: اگر این گره قبلاً در همین نوبت کارت تولید کرده، آن را رد کن!
                             if (processedVertices.contains(vertex)) {
                                 continue;
                             }
@@ -261,17 +248,14 @@ public class GameEngine implements Serializable {
                             owner.addResource(resource, yield);
                             log("📦 " + owner.getName() + " earned " + yield + " " + resource + " from Sector " + rollValue);
 
-                            // ثبت آمار برای خروجی نهایی
                             yields.put(owner, yields.getOrDefault(owner, 0) + yield);
-
-                            // 🔒 قفل کردن گره برای باقی‌مانده این دور از محاسبات تاس
                             processedVertices.add(vertex);
                         }
                     }
                 }
             }
         }
-        return yields; // برگرداندن مپ توزیع به جای null برای صحت لاگ‌های فرانت‌اند
+        return yields;
     }
 
     public int calculateLongestNetwork(Player player) {
@@ -334,13 +318,12 @@ public class GameEngine implements Serializable {
         }
     }
 
-    // 🏢 ساخت محصول اولیه (MVP)
+    // MVP building logic
     public void buildMVP(Player player, Vertex targetVertex) {
         if (targetVertex.isLockedByAuditor()) {
             throw new exception.InvalidPlacementException("🚨 REGULATORY BLOCK: The Tax Inspector is auditing this sector! You cannot build here.");
         }
 
-        // 🎯 اصلاح نهایی ارور مینی‌مال چندخطی برای جلوگیری از سه‌نقطه شدن متن
         if (player.getResource(ResourceType.CAPITAL) < 1 || player.getResource(ResourceType.TALENT) < 1 ||
                 player.getResource(ResourceType.CLOUD) < 1 || player.getResource(ResourceType.DATA) < 1) {
             throw new NotEnoughResourceException("Missing for MVP:\n1 Capital, 1 Talent\n1 Cloud, 1 Data");
@@ -363,7 +346,7 @@ public class GameEngine implements Serializable {
         log("🏢 SUCCESS: " + player.getName() + " built an MVP on Vertex!");
     }
 
-    // 🦄 ارتقای MVP به Unicorn
+    // Upgrade MVP to Unicorn
     public void upgradeToUnicorn(Player player, Vertex targetVertex) {
         if (targetVertex.isLockedByAuditor()) {
             throw new exception.InvalidPlacementException("🚨 REGULATORY BLOCK: The Tax Inspector is auditing this sector! You cannot build or upgrade here.");
@@ -380,7 +363,6 @@ public class GameEngine implements Serializable {
         int cloudCost = (player.getRole() == FounderRole.GURU_CTO) ? 1 : 2;
         int dataCost = 3;
 
-        // 🎯 اصلاح نهایی ارور مینی‌مال چندخطی یونی‌کورن
         if (player.getResource(ResourceType.DATA) < dataCost || player.getResource(ResourceType.CLOUD) < cloudCost) {
             throw new NotEnoughResourceException("Missing for Unicorn:\n3 Data, " + cloudCost + " Cloud");
         }
@@ -396,13 +378,12 @@ public class GameEngine implements Serializable {
         log("🦄 SUCCESS: " + player.getName() + " upgraded an MVP to Unicorn!");
     }
 
-    // 🤝 ساخت قرارداد همکاری (Partnership)
+    // Build a partnership (road equivalent)
     public void buildPartnership(Player player, Edge targetEdge) {
         if (targetEdge.getOwner() != null) {
             throw new exception.InvalidPlacementException("This edge is already claimed!");
         }
 
-        // 🎯 اصلاح نهایی ارور مینی‌مال چندخطی جاده
         if (player.getResource(ResourceType.CAPITAL) < 1 || player.getResource(ResourceType.PATENT) < 1) {
             throw new NotEnoughResourceException("Missing for Road:\n1 Capital, 1 Patent");
         }
@@ -433,7 +414,7 @@ public class GameEngine implements Serializable {
         log("🤝 SUCCESS: " + player.getName() + " established a Partnership!");
     }
 
-    // 🕵️‍♂️ جابجایی بازرس مالیاتی
+    // Move the tax auditor blocker
     public void moveAuditor(Player rollingPlayer, int targetRow, int targetCol) {
         Sector targetSector = this.gameMap.getSectors()[targetRow][targetCol];
 
@@ -512,7 +493,7 @@ public class GameEngine implements Serializable {
         return new ArrayList<>(this.gameLog);
     }
 
-    // 🤖 هوش مصنوعی فاز ست‌آپ ربات
+    // Bot setup AI
     public void playBotSetupTurn() {
         Player activePlayer = getCurrentPlayer();
         if (!(activePlayer instanceof SimpleBot)) return;
@@ -546,7 +527,7 @@ public class GameEngine implements Serializable {
         }
     }
 
-    // 🔍 متدهای گراف سرچ و مکان‌یابی نقشه (مورد نیاز هوش مصنوعی ربات‌ها)
+    // Graph search helpers for bot AI
     private Vertex findRandomValidVertexForSetup() {
         List<Vertex> validVertices = new ArrayList<>();
         for (Vertex[] row : this.gameMap.getVertices()) {
@@ -638,7 +619,7 @@ public class GameEngine implements Serializable {
         return null;
     }
 
-    // 🤖🧠 متد نهایی و فوق هوشمند نوبت ربات‌ها (بدون تکرار و ۱۰۰٪ کامپایل موفق)
+    // Bot turn AI logic
     public void playBotTurn(Dice dice) {
         Player activePlayer = getCurrentPlayer();
         if (!(activePlayer instanceof SimpleBot)) return;
@@ -646,7 +627,7 @@ public class GameEngine implements Serializable {
         SimpleBot bot = (SimpleBot) activePlayer;
         log("🤖 Bot " + bot.getName() + " is analyzing financial assets and market rates...");
 
-        // 🏦 ۱. حلقه ترید متوالی برای تامین منابع ساخت MVP
+        // 1. Trade resources with market to afford MVP
         ResourceType[] requiredForMvp = {ResourceType.CAPITAL, ResourceType.TALENT, ResourceType.CLOUD, ResourceType.DATA};
         boolean keepTrading = true;
         while (keepTrading) {
@@ -677,7 +658,7 @@ public class GameEngine implements Serializable {
             }
         }
 
-        // 🦄 ۲. اولویت اول -> تلاش برای ارتقا به یونی‌کورن
+        // 2. Try upgrading to Unicorn (Priority 1)
         if (bot.getResource(ResourceType.DATA) >= 3 && bot.getResource(ResourceType.CLOUD) >= 2) {
             Vertex mvpVertex = findBotMvpToUpgrade(bot);
             if (mvpVertex != null) {
@@ -692,7 +673,7 @@ public class GameEngine implements Serializable {
             }
         }
 
-        // 🏢 ۳. اولویت دوم -> ساخت سازه MVP
+        // 3. Try building MVP (Priority 2)
         boolean canAffordMVP = bot.getResource(ResourceType.CAPITAL) >= 1 &&
                 bot.getResource(ResourceType.TALENT) >= 1 &&
                 bot.getResource(ResourceType.CLOUD) >= 1 &&
@@ -713,7 +694,7 @@ public class GameEngine implements Serializable {
                 tryToBuildBotPartnership(bot);
             }
         } else {
-            // 🛣️ ۴. اولویت سوم -> مدیریت هوشمند جاده‌کشی برای پیشروی رندوم
+            // 4. Save resources or expand network (Priority 3)
             Vertex nextPossibleVertex = findRandomValidVertexForNormal(bot);
             if (nextPossibleVertex == null) {
                 tryToBuildBotPartnership(bot);
@@ -725,7 +706,7 @@ public class GameEngine implements Serializable {
         nextTurn();
     }
 
-    // 🔍 متد کمکی: مدیریت ترید مارکت اختصاصی جاده و پیشروی رندوم ربات در سراسر مپ
+    // Bot market trade for roads
     private void tryToBuildBotPartnership(SimpleBot bot) {
         ResourceType[] requiredForRoad = {ResourceType.CAPITAL, ResourceType.PATENT};
         for (ResourceType needed : requiredForRoad) {

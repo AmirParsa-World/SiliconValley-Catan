@@ -516,7 +516,7 @@ public class MainApp extends Application {
         Player current = engine.getCurrentPlayer();
 
         if (!(current instanceof SimpleBot)) {
-            // 🎯 قفل کردن نقطه شروع لاگ راند برای پلier انسان
+            // Lock the starting log index for the human player
             this.humanStartLogSize = engine.getGameLog().size();
             actionPane.initTurnLogStart(this.humanStartLogSize);
 
@@ -545,18 +545,16 @@ public class MainApp extends Application {
         displayTurnSummary(this.humanStartLogSize, current.getName(), "HUMAN");
     }
 
-
-
     private void runBotSetupTurn() {
         Player current = engine.getCurrentPlayer();
         if (!(current instanceof SimpleBot)) return;
 
         SimpleBot bot = (SimpleBot) current;
 
-        // 🎲 انتخاب هوشمندانه و رندوم نقش بر اساس ظرفیت باقی‌مانده در بازار
+        // Smart role selection based on remaining market availability
         if (bot.getRole() == null || bot.getRole() == FounderRole.NONE) {
 
-            // ۱. پیدا کردن تمام نقش‌هایی که تا این لحظه توسط بقیه (انسان یا بات) گرفته شده است
+            // 1. Identify all roles claimed by other players
             List<FounderRole> takenRoles = new ArrayList<>();
             for (Player p : engine.getPlayers()) {
                 if (p != bot && p.getRole() != null && p.getRole() != FounderRole.NONE) {
@@ -564,7 +562,7 @@ public class MainApp extends Application {
                 }
             }
 
-            // ۲. تشکیل لیست نقش‌های استارتاپیِ آزاد و باقی‌مانده
+            // 2. Filter available startup roles
             List<FounderRole> availableRoles = new ArrayList<>();
             for (FounderRole r : FounderRole.values()) {
                 if (r != FounderRole.NONE && !takenRoles.contains(r)) {
@@ -572,13 +570,13 @@ public class MainApp extends Application {
                 }
             }
 
-            // ۳. تصمیم‌گیری نهایی ربات
+            // 3. Final bot role assignment decision
             if (availableRoles.isEmpty()) {
-                // سناریوی نفر چهارم: اگر هیچ نقش منحصربه‌فردی باقی نمانده باشد
+                // Fallback for 4th player: assign NONE if no roles left
                 bot.setRole(FounderRole.NONE);
                 engine.log("🎭 STRATEGY: No unique roles left in Tech Park. Bot " + bot.getName() + " started with FounderRole.NONE.");
             } else {
-                // ربات شانس این را دارد که یا یک نقش باقی‌مانده را بردارد یا اصلاً نقشی برندارد (NONE) تا امتیاز منفی نخورد
+                // Bot chooses between available options or staying roleless to avoid penalties
                 List<FounderRole> pool = new ArrayList<>(availableRoles);
                 pool.add(FounderRole.NONE);
 
@@ -616,30 +614,30 @@ public class MainApp extends Application {
         actionPane.updateStatus(bot.getName() + " (BOT)\nis thinking...");
         updateUI();
 
-        // 🚩 ثبت نقطه شروع لاگ‌ها برای محاسبه پکیج خلاصه این نوبت ربات
+        // Record starting log size to generate bot turn summary
         int startLogSize = engine.getGameLog().size();
 
-        // 🎯 تعریف مشترک منطق ساخت و ساز ربات پس از محاسبات تاس
+        // Common logic for bot building phase after dice roll calculations
         Runnable botPostRollLogic = () -> {
-            // گام دوم: مکث برای ساخت و ساز هوش مصنوعی
+            // Step 2: Delay for AI building execution
             PauseTransition buildDelay = new PauseTransition(Duration.seconds(1.8));
             buildDelay.setOnFinished(e2 -> {
                 try {
-                    // 🎰 اجرای هوش مصنوعی (این متد در بک‌اند نوبت را به بازیکن بعدی می‌دهد)
+                    // Execute AI turn logic (automatically advances turn in backend)
                     engine.playBotTurn(new Dice());
                     engine.updateLongestNetworkAward();
 
-                    // 🎯 تولید و نمایش پکیج کامل خلاصه عملکرد ربات در بالای صفحه
+                    // Generate and display complete bot performance summary
                     displayTurnSummary(startLogSize, bot.getName(), "BUILD");
                     updateUI();
 
-                    // 🚨 گام سوم: فعال کردن دکمه تایید نوبت ربات برای بازیکن انسان
+                    // Step 3: Enable the bot turn confirmation button for human player
                     Platform.runLater(() -> {
                         actionPane.getEndTurnBtn().setText("Next Turn ➡️");
                         actionPane.getEndTurnBtn().setDisable(false);
                         actionPane.getEndTurnBtn().setVisible(true);
                         actionPane.getEndTurnBtn().setManaged(true);
-                        actionPane.getEndTurnBtn().setStyle("-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-weight: bold;"); // آبی کارآگاهی
+                        actionPane.getEndTurnBtn().setStyle("-fx-background-color: #2196F3; -fx-text-fill: white; -fx-font-weight: bold;"); // Professional blue styling
 
                         actionPane.getEndTurnBtn().setOnAction(evt -> {
                             actionPane.getEndTurnBtn().setText("End Turn");
@@ -650,7 +648,7 @@ public class MainApp extends Application {
                                 showVictoryScreen();
                             } else {
                                 updateUI();
-                                checkAndRunBotTurn(); // هدایت به دور بعدی
+                                checkAndRunBotTurn(); // Proceed to the next round
                             }
                         });
                     });
@@ -663,13 +661,13 @@ public class MainApp extends Application {
             buildDelay.play();
         };
 
-        // 🚨 گام طلایی ضد کرش: اگر ربات قبلاً تاس ریخته (مثلاً در وضعیت لود بازی)، فاز تاس را رد کن
+        // Safe check: skip dice rolling phase if bot already rolled (e.g., after loading save)
         if (engine.hasRolledThisTurn()) {
             actionPane.updateStatus(bot.getName() + " (BOT)\nalready rolled. Upgrading...");
-            // اجرای مستقیم منطق پس از تاس بدون ریختن مجدد آن
+            // Directly execute post-roll logic without re-rolling
             botPostRollLogic.run();
         } else {
-            // 🎲 روال عادی بازی: پرتاب تاس با مکث کوتاه
+            // Normal gameplay: roll dice with a short delay
             PauseTransition rollDelay = new PauseTransition(Duration.seconds(1.2));
             rollDelay.setOnFinished(e -> {
                 try {
@@ -705,7 +703,7 @@ public class MainApp extends Application {
         }
     }
 
-    // 🛡️ شاسی اعلام حریق اختصاصی برای جلوگیری از قفل شدن بازی
+    // Fail-safe handler to prevent game freezing during critical errors
     private void activateFailSafeButton(String message) {
         Platform.runLater(() -> {
             actionPane.updateStatus(message);
@@ -713,14 +711,14 @@ public class MainApp extends Application {
             actionPane.getEndTurnBtn().setDisable(false);
             actionPane.getEndTurnBtn().setVisible(true);
             actionPane.getEndTurnBtn().setManaged(true);
-            actionPane.getEndTurnBtn().setStyle("-fx-background-color: #d32f2f; -fx-text-fill: white; -fx-font-weight: bold;"); // قرمز اضطراری
+            actionPane.getEndTurnBtn().setStyle("-fx-background-color: #d32f2f; -fx-text-fill: white; -fx-font-weight: bold;"); // Emergency red styling
 
             actionPane.getEndTurnBtn().setOnAction(evt -> {
                 actionPane.getEndTurnBtn().setText("End Turn");
                 actionPane.getEndTurnBtn().setStyle(null);
                 actionPane.getEndTurnBtn().setOnAction(click -> actionPane.endTurn());
 
-                // اجبار موتور بازی به رد کردن نوبت بات به صورت مسالمت‌آمیز
+                // Force the engine to advance past the bot turn gracefully
                 engine.nextTurn();
                 updateUI();
                 checkAndRunBotTurn();
@@ -734,7 +732,7 @@ public class MainApp extends Application {
             int finalScore = winner.countPlayerPoint();
             String roleStr = winner.getRole() != null ? winner.getRole().toString() : "FOUNDER";
 
-            // 🎬 ایجاد استیج پاپ‌آپ مجزا و جذاب برای جشن پیروزی
+            // Create a dedicated modal stage for the victory celebration
             javafx.stage.Stage victoryStage = new javafx.stage.Stage();
             victoryStage.initModality(javafx.stage.Modality.APPLICATION_MODAL);
             victoryStage.setTitle("🚀 IPO TRIUMPH - BILLION-DOLLAR EXIT!");
@@ -743,7 +741,7 @@ public class MainApp extends Application {
             layout.setAlignment(javafx.geometry.Pos.CENTER);
             layout.setStyle("-fx-padding: 30; -fx-background-color: #111116; -fx-border-color: #fbc02d; -fx-border-width: 3; -fx-border-radius: 12; -fx-background-radius: 12;");
 
-            // 👑 افکت تایتل درخشان استارتاپی
+            // Startup-themed stylized title label
             javafx.scene.control.Label crownLabel = new javafx.scene.control.Label("✨ UNICORN IPO COMPLETED ✨");
             crownLabel.setFont(javafx.scene.text.Font.font("Arial", javafx.scene.text.FontWeight.BOLD, 22));
             crownLabel.setTextFill(javafx.scene.paint.Color.web("#fbc02d"));
@@ -758,14 +756,14 @@ public class MainApp extends Application {
             subText.setTextFill(javafx.scene.paint.Color.LIGHTGRAY);
             subText.setStyle("-fx-text-alignment: center;");
 
-            // 📊 جدول دستاوردهای نهایی کارنامه شما
+            // Final achievements and milestones statistics box
             javafx.scene.layout.VBox statsBox = new javafx.scene.layout.VBox(6);
             statsBox.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
             statsBox.setStyle("-fx-background-color: #1e1e26; -fx-padding: 12; -fx-background-radius: 6; -fx-max-width: 290; -fx-border-color: #333; -fx-border-radius: 6;");
 
             javafx.scene.control.Label statsTitle = new javafx.scene.control.Label("📈 Final Startup Milestones:");
             statsTitle.setFont(javafx.scene.text.Font.font("Arial", javafx.scene.text.FontWeight.BOLD, 12));
-            statsTitle.setTextFill(javafx.scene.paint.Color.web("#87CEEB")); // آبی روشن کلود
+            statsTitle.setTextFill(javafx.scene.paint.Color.web("#87CEEB"));
 
             javafx.scene.control.Label netStat = new javafx.scene.control.Label("• Longest Network: " + engine.calculateLongestNetwork(winner) + " Tech Paths 🛣️");
             netStat.setTextFill(javafx.scene.paint.Color.WHITE);
@@ -777,17 +775,17 @@ public class MainApp extends Application {
 
             statsBox.getChildren().addAll(statsTitle, netStat, cardStat);
 
-            // 🕹️ باکس دکمه‌های کنترلی (انعطاف‌پذیری در خروج)
+            // Control buttons container for flexible exit options
             javafx.scene.layout.HBox buttonContainer = new javafx.scene.layout.HBox(12);
             buttonContainer.setAlignment(javafx.geometry.Pos.CENTER);
 
-            // دکمه اول: تماشای نقشه (فقط پاپ‌آپ را می‌بندد تا برد را تماشا کنی)
+            // Option 1: Close popup to admire the final board layout
             javafx.scene.control.Button admireBtn = new javafx.scene.control.Button("Admire Board 🗺️");
             admireBtn.setFont(javafx.scene.text.Font.font("Arial", javafx.scene.text.FontWeight.BOLD, 12));
             admireBtn.setStyle("-fx-background-color: #007ACC; -fx-text-fill: white; -fx-padding: 8 15; -fx-background-radius: 5; -fx-cursor: hand;");
             admireBtn.setOnAction(e -> victoryStage.close());
 
-            // دکمه دوم: خروج کامل از بازی
+            // Option 2: Shutdown the application completely
             javafx.scene.control.Button exitBtn = new javafx.scene.control.Button("Exit App 🛑");
             exitBtn.setFont(javafx.scene.text.Font.font("Arial", javafx.scene.text.FontWeight.BOLD, 12));
             exitBtn.setStyle("-fx-background-color: #d32f2f; -fx-text-fill: white; -fx-padding: 8 15; -fx-background-radius: 5; -fx-cursor: hand;");
@@ -860,18 +858,17 @@ public class MainApp extends Application {
                 if (auditorLoc.equals(logLine)) auditorLoc = "Moved";
             }
 
-            // 💰 شمارش عددی سود و زیان و تریدها بدون توجه به نام منبع
-            // 💰 محاسبه مجموع سود و زیان منبع فقط برای پلیر/بات جاری (کاملاً واکسینه شده در برابر ساعت و نام بات)
+            // Calculate aggregate resource deltas isolated for the current active player entity
             if (logLine.contains(entityName)) {
                 if (logLower.contains("earned") || logLower.contains("yield") || logLower.contains("received") || logLower.contains("added")) {
-                    // 🎯 فقط عددی که بعد از کلمات کلیدی درآمد آمده را شکار میکند
+                    // Match and extract integer value immediately following resource gain keywords
                     java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:earned|yield|received|added)\\s+(\\d+)").matcher(logLower);
                     if (m.find()) {
                         totalYield += Integer.parseInt(m.group(1));
                     }
                 }
                 if (logLower.contains("lost") || logLower.contains("taxed") || logLower.contains("discarded") || logLower.contains("spent")) {
-                    // 🎯 فقط عددی که بعد از کلمات کلیدی جریمه/هزینه آمده را شکار میکند
+                    // Match and extract integer value immediately following resource penalty keywords
                     java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:lost|taxed|discarded|spent)\\s+(\\d+)").matcher(logLower);
                     if (m.find()) {
                         taxLost += Integer.parseInt(m.group(1));
@@ -902,6 +899,7 @@ public class MainApp extends Application {
 
         dicePane.updateLiveTicker(dashboard.toString(), type);
     }
+
     public static void main(String[] args) {
         launch(args);
     }
