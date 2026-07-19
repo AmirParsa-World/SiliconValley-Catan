@@ -27,7 +27,6 @@ public class GameEngine implements Serializable {
     // needed for giving a log about gameFlow
     private final List<String> gameLog = new ArrayList<>();
 
-
     // 🏗️ Constructor (مپ را به عنوان فیلد اصلی بازی تحویل می‌گیرد)
     public GameEngine(List<Player> players, Market market, Map gameMap) {
         this.players = players != null ? players : new ArrayList<>();
@@ -141,12 +140,12 @@ public class GameEngine implements Serializable {
         if (activePlayer.countPlayerPoint() >= 10) {
             this.currentPhase = GamePhase.FINISHED;
             log("🏆🏆🏆 VICTORY! " + activePlayer.getName() + " reached " + activePlayer.countPlayerPoint() + " points and won the game! 🏆🏆🏆");
-            return true; // 🏁 بله، بازیکن برنده شده است.
+            return true;
         }
-        return false; // ❌ خیر، بازی هنوز ادامه دارد.
+        return false;
     }
 
-    // 🔄 مدیریت پویای نوبت‌ها برای هر دو فاز SETUP و NORMAL
+    // 🔄 مدیریت نوبت‌ها
     public void nextTurn() {
         if (players.isEmpty()) return;
 
@@ -164,12 +163,10 @@ public class GameEngine implements Serializable {
             }
         } else if (currentPhase == GamePhase.NORMAL) {
 
-            // اگر متد مقدار true برگرداند (یعنی بازی تمام شده)، بلافاصله متد را خاتمه می‌دهیم (return)
             if (checkVictoryCondition()) {
                 return;
             }
 
-            // اگر بازی تمام نشده بود، نوبت را منتقل می‌کند:
             if (currentPlayerIndex == players.size() - 1) {
                 market.incrementRoundTick();
                 currentRound++;
@@ -183,7 +180,6 @@ public class GameEngine implements Serializable {
         }
     }
 
-    // Returns map of players who need to discard, and how many cards each
     public java.util.Map<Player, Integer> triggerRegulatoryCrisis() {
         log("🚨 REGULATORY CRISIS TRIPPED! Tax authorities are auditing players...");
 
@@ -204,7 +200,6 @@ public class GameEngine implements Serializable {
         return discardMap;
     }
 
-    // 🏗️ بررسی قانون فاصله ۲ یال برای ساخت سازه جدید
     public boolean isValidStructurePlacement(Vertex targetVertex) {
         if (targetVertex.hasStructure()) {
             return false;
@@ -225,7 +220,6 @@ public class GameEngine implements Serializable {
         System.out.println("[UI Stub] Regulatory Auditor Blocker is ready to be moved on the map.");
     }
 
-    // Distribute resources based on dice roll. Returns discard map if roll is 7, null otherwise.
     public java.util.Map<Player, Integer> distributeResources(int rollValue) {
         if (rollValue == 7) {
             return triggerRegulatoryCrisis();
@@ -248,7 +242,6 @@ public class GameEngine implements Serializable {
                     for (Vertex vertex : corners) {
                         if (vertex != null && vertex.hasStructure() && vertex.getOwner() != null) {
 
-                            // 🛑 اگر این ورتکس توسط بازرس پلمپ شده باشد، از این سکتور هیچ منبعی نمی‌گیرد
                             if (vertex.isLockedByAuditor()) {
                                 continue;
                             }
@@ -265,7 +258,7 @@ public class GameEngine implements Serializable {
         }
         return null;
     }
-    // 🕸️ محاسبه طول بلندترین جاده متصل (بدون نیاز به پاس دادن دستی نقشه)
+
     public int calculateLongestNetwork(Player player) {
         int maxLength = 0;
         List<Edge> playerEdges = new ArrayList<>();
@@ -305,10 +298,9 @@ public class GameEngine implements Serializable {
         return 1 + maxDepth;
     }
 
-    // 🏆 متد تخصصی تخصیص پویای امتیاز بلندترین زنجیره جاده (بدون نیاز به پاس دادن دستی نقشه)
     public void updateLongestNetworkAward() {
         Player currentWinner = null;
-        int maxLen = 2; // حداقل طول زنجیره باید بزرگتر از ۲ باشد
+        int maxLen = 2;
 
         for (Player p : players) {
             int len = calculateLongestNetwork(p);
@@ -318,7 +310,6 @@ public class GameEngine implements Serializable {
             }
         }
 
-        // 🌟 مقداردهی فیلد برای همه بازیکنان (برنده true و بقیه false)
         for (Player p : players) {
             p.setHasLongestNetwork(p.equals(currentWinner));
         }
@@ -330,14 +321,14 @@ public class GameEngine implements Serializable {
 
     // 🏢 ساخت محصول اولیه (MVP)
     public void buildMVP(Player player, Vertex targetVertex) {
-        // 🚨 شرط بازرس مالیاتی: اگر خانه قفل بود، اجازه ساخت نده
         if (targetVertex.isLockedByAuditor()) {
             throw new exception.InvalidPlacementException("🚨 REGULATORY BLOCK: The Tax Inspector is auditing this sector! You cannot build here.");
         }
 
+        // 🎯 اصلاح نهایی ارور مینی‌مال چندخطی برای جلوگیری از سه‌نقطه شدن متن
         if (player.getResource(ResourceType.CAPITAL) < 1 || player.getResource(ResourceType.TALENT) < 1 ||
                 player.getResource(ResourceType.CLOUD) < 1 || player.getResource(ResourceType.DATA) < 1) {
-            throw new NotEnoughResourceException(player.getName() + " lacks resources for MVP! (Needs: 1 Capital, 1 Talent, 1 Cloud, 1 Data)");
+            throw new NotEnoughResourceException("Missing for MVP:\n1 Capital, 1 Talent\n1 Cloud, 1 Data");
         }
 
         if (!isValidStructurePlacement(targetVertex)) {
@@ -359,8 +350,7 @@ public class GameEngine implements Serializable {
 
     // 🦄 ارتقای MVP به Unicorn
     public void upgradeToUnicorn(Player player, Vertex targetVertex) {
-
-        if (targetVertex.isLockedByAuditor()) { // یا هر متدی که برای چک کردن قفل بودن سکتور داری
+        if (targetVertex.isLockedByAuditor()) {
             throw new exception.InvalidPlacementException("🚨 REGULATORY BLOCK: The Tax Inspector is auditing this sector! You cannot build or upgrade here.");
         }
 
@@ -372,17 +362,12 @@ public class GameEngine implements Serializable {
             throw new exception.InvalidPlacementException("You can only upgrade your own MVP!");
         }
 
-
-
-        if (!targetVertex.hasStructure() || !(targetVertex.getStructure() instanceof MVP) || !targetVertex.getOwner().equals(player)) {
-            throw new exception.InvalidPlacementException("You can only upgrade your own MVP!");
-        }
-
         int cloudCost = (player.getRole() == FounderRole.GURU_CTO) ? 1 : 2;
         int dataCost = 3;
 
+        // 🎯 اصلاح نهایی ارور مینی‌مال چندخطی یونی‌کورن
         if (player.getResource(ResourceType.DATA) < dataCost || player.getResource(ResourceType.CLOUD) < cloudCost) {
-            throw new NotEnoughResourceException(player.getName() + " lacks resources for Unicorn! (Needs: 3 Data, " + cloudCost + " Cloud)");
+            throw new NotEnoughResourceException("Missing for Unicorn:\n3 Data, " + cloudCost + " Cloud");
         }
 
         player.spendResource(ResourceType.DATA, dataCost);
@@ -402,8 +387,9 @@ public class GameEngine implements Serializable {
             throw new exception.InvalidPlacementException("This edge is already claimed!");
         }
 
+        // 🎯 اصلاح نهایی ارور مینی‌مال چندخطی جاده
         if (player.getResource(ResourceType.CAPITAL) < 1 || player.getResource(ResourceType.PATENT) < 1) {
-            throw new NotEnoughResourceException(player.getName() + " lacks resources for Partnership! (Needs: 1 Capital, 1 Patent)");
+            throw new NotEnoughResourceException("Missing for Road:\n1 Capital, 1 Patent");
         }
 
         boolean isConnected = false;
@@ -432,7 +418,7 @@ public class GameEngine implements Serializable {
         log("🤝 SUCCESS: " + player.getName() + " established a Partnership!");
     }
 
-    // 🚨 حرکت دادن مهره بازرس (Auditor) (با استفاده از نقشه داخلی این کلاس)
+    // 🕵️‍♂️ جابجایی بازرس مالیاتی
     public void moveAuditor(Player rollingPlayer, int targetRow, int targetCol) {
         Sector targetSector = this.gameMap.getSectors()[targetRow][targetCol];
 
@@ -450,7 +436,6 @@ public class GameEngine implements Serializable {
             throw new exception.InvalidAuditorPlacementException("You must place the Auditor on a sector that has at least one player's structure!");
         }
 
-        // 🔓 ۱. پیدا کردن سکتور مسدود قبلی و آزاد کردن ۴ گوشه آن
         for (Sector[] row : this.gameMap.getSectors()) {
             for (Sector sec : row) {
                 if (sec != null && sec.isBlocked()) {
@@ -465,7 +450,6 @@ public class GameEngine implements Serializable {
             }
         }
 
-        // 🔒 ۲. مسدود کردن سکتور جدید و قفل کردن ۴ گوشه آن
         targetSector.block();
         Vertex[] newCorners = { targetSector.getBottomLeft(), targetSector.getBottomRight(), targetSector.getTopLeft(), targetSector.getTopRight() };
         for (Vertex v : newCorners) {
@@ -486,7 +470,6 @@ public class GameEngine implements Serializable {
         return false;
     }
 
-    // 🚀 فاز راه‌اندازی شروع بازی (Setup Phase)
     public void setupPlaceMVPAndPartnership(Player player, Vertex vertex, Edge edge) {
         if (!isValidStructurePlacement(vertex)) {
             throw new exception.InvalidPlacementException("Distance rule violated during setup phase!");
@@ -503,11 +486,9 @@ public class GameEngine implements Serializable {
         log("📦 SETUP SUCCESS: " + player.getName() + " placed starting MVP & Partnership!");
     }
 
-    // ثبت لاگ همراه با مهر زمانی (Timestamp)
     public void log(String message) {
         String timestamp = java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
         String formattedLog = "[" + timestamp + "] " + message;
-
         gameLog.add(formattedLog);
         System.out.println(formattedLog);
     }
@@ -516,7 +497,7 @@ public class GameEngine implements Serializable {
         return new ArrayList<>(this.gameLog);
     }
 
-    // 🤖 اجرای خودکار فاز راه‌اندازی (Setup) برای ربات (استفاده از مپ داخلی)
+    // 🤖 هوش مصنوعی فاز ست‌آپ ربات
     public void playBotSetupTurn() {
         Player activePlayer = getCurrentPlayer();
         if (!(activePlayer instanceof SimpleBot)) return;
@@ -527,7 +508,6 @@ public class GameEngine implements Serializable {
         Vertex targetVertex = findRandomValidVertexForSetup();
 
         if (targetVertex != null) {
-            // 🎯 جمع‌آوری تمام یال‌های خالی و قانونی همسایه در یک لیست
             List<Edge> availableEdges = new ArrayList<>();
             for (Edge edge : targetVertex.getNeighboringEdges()) {
                 if (edge != null && edge.getOwner() == null) {
@@ -535,7 +515,6 @@ public class GameEngine implements Serializable {
                 }
             }
 
-            // 🎲 انتخاب کاملاً تصادفی یک یال از بین گزینه‌های موجود برای طبیعی شدن حرکت
             if (!availableEdges.isEmpty()) {
                 Edge targetEdge = availableEdges.get(new java.util.Random().nextInt(availableEdges.size()));
                 try {
@@ -552,7 +531,99 @@ public class GameEngine implements Serializable {
         }
     }
 
-    // 🤖 Bot build phase only (dice rolling and turn advancement handled by UI)
+    // 🔍 متدهای گراف سرچ و مکان‌یابی نقشه (مورد نیاز هوش مصنوعی ربات‌ها)
+    private Vertex findRandomValidVertexForSetup() {
+        List<Vertex> validVertices = new ArrayList<>();
+        for (Vertex[] row : this.gameMap.getVertices()) {
+            for (Vertex v : row) {
+                if (v != null && isValidStructurePlacement(v)) {
+                    validVertices.add(v);
+                }
+            }
+        }
+        if (!validVertices.isEmpty()) {
+            return validVertices.get(new java.util.Random().nextInt(validVertices.size()));
+        }
+        return null;
+    }
+
+    private Vertex findRandomValidVertexForNormal(SimpleBot bot) {
+        List<Vertex> validVertices = new ArrayList<>();
+        for (Sector[] row : this.gameMap.getSectors()) {
+            for (Sector sector : row) {
+                if (sector == null) continue;
+                Vertex[] corners = {sector.getBottomLeft(), sector.getBottomRight(), sector.getTopLeft(), sector.getTopRight()};
+                for (Vertex v : corners) {
+                    if (v != null && isValidStructurePlacement(v)) {
+                        for (Edge edge : v.getNeighboringEdges()) {
+                            if (edge != null && edge.getOwner() != null && edge.getOwner().equals(bot)) {
+                                validVertices.add(v);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (!validVertices.isEmpty()) {
+            return validVertices.get(new java.util.Random().nextInt(validVertices.size()));
+        }
+        return null;
+    }
+
+    private Vertex findBotMvpToUpgrade(SimpleBot bot) {
+        for (Sector[] row : this.gameMap.getSectors()) {
+            for (Sector sector : row) {
+                if (sector == null) continue;
+                Vertex[] corners = {sector.getBottomLeft(), sector.getBottomRight(), sector.getTopLeft(), sector.getTopRight()};
+                for (Vertex v : corners) {
+                    if (v != null && v.getOwner() == bot && v.getStructure() instanceof MVP) {
+                        return v;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private Edge findRandomValidEdgeForBot(SimpleBot bot) {
+        List<Edge> validEdges = new ArrayList<>();
+        for (Sector[] row : this.gameMap.getSectors()) {
+            for (Sector sector : row) {
+                if (sector == null) continue;
+                Vertex[] corners = {sector.getBottomLeft(), sector.getBottomRight(), sector.getTopLeft(), sector.getTopRight()};
+                for (Vertex v : corners) {
+                    if (v == null) continue;
+
+                    boolean connectedToBotTerritory = (v.getOwner() == bot);
+                    if (!connectedToBotTerritory) {
+                        for (Edge e : v.getNeighboringEdges()) {
+                            if (e != null && e.getOwner() == bot) {
+                                connectedToBotTerritory = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (connectedToBotTerritory) {
+                        for (Edge edge : v.getNeighboringEdges()) {
+                            if (edge != null && edge.getOwner() == null) {
+                                if (!validEdges.contains(edge)) {
+                                    validEdges.add(edge);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (!validEdges.isEmpty()) {
+            return validEdges.get(new java.util.Random().nextInt(validEdges.size()));
+        }
+        return null;
+    }
+
+    // 🤖🧠 متد نهایی و فوق هوشمند نوبت ربات‌ها (بدون تکرار و ۱۰۰٪ کامپایل موفق)
     public void playBotTurn(Dice dice) {
         Player activePlayer = getCurrentPlayer();
         if (!(activePlayer instanceof SimpleBot)) return;
@@ -560,38 +631,53 @@ public class GameEngine implements Serializable {
         SimpleBot bot = (SimpleBot) activePlayer;
         log("🤖 Bot " + bot.getName() + " is analyzing financial assets and market rates...");
 
-        // 🧠 ۱. الگوریتم هوش تجاری ربات با مارکت باران
+        // 🏦 ۱. حلقه ترید متوالی برای تامین منابع ساخت MVP
         ResourceType[] requiredForMvp = {ResourceType.CAPITAL, ResourceType.TALENT, ResourceType.CLOUD, ResourceType.DATA};
-
-        for (ResourceType needed : requiredForMvp) {
-            // اگر ربات این منبع را برای ساخت MVP کم دارد
-            if (bot.getResource(needed) < 1) {
-                // پیدا کردن یک منبع مازاد (مثلاً منبعی که ربات از آن ۳ تا یا بیشتر دارد) برای فروش
-                for (ResourceType surplus : ResourceType.values()) {
-                    if (surplus != needed && bot.getResource(surplus) >= 3) {
-                        int sellPrice = market.getSellPrice(surplus);
-
-                        // فروش منبع مازاد به مارکت برای کسب سود
-                        bot.spendResource(surplus, 1);
-                        bot.addResource(ResourceType.CAPITAL, sellPrice);
-                        log("🔄 Market Trade: Bot " + bot.getName() + " sold 1 " + surplus + " for " + sellPrice + " Capital.");
-
-                        // اگر منبعِ مورد نیاز، خودِ Capital نبود، حالا با ثروتی که دارد آن را می‌خرد
-                        if (needed != ResourceType.CAPITAL) {
-                            int buyPrice = market.getBuyPrice(needed);
-                            if (bot.getResource(ResourceType.CAPITAL) >= buyPrice) {
-                                bot.spendResource(ResourceType.CAPITAL, buyPrice);
-                                bot.addResource(needed, 1);
-                                log("🔄 Market Trade: Bot " + bot.getName() + " spent " + buyPrice + " Capital to buy 1 " + needed + ".");
-                            }
+        boolean keepTrading = true;
+        while (keepTrading) {
+            keepTrading = false;
+            for (ResourceType needed : requiredForMvp) {
+                if (bot.getResource(needed) < 1) {
+                    for (ResourceType surplus : ResourceType.values()) {
+                        if (surplus != needed && bot.getResource(surplus) >= 3) {
+                            int sellPrice = market.getSellPrice(surplus);
+                            bot.spendResource(surplus, 1);
+                            bot.addResource(ResourceType.CAPITAL, sellPrice);
+                            log("🔄 Market Trade: Bot " + bot.getName() + " sold 1 " + surplus + " for " + sellPrice + " Capital.");
+                            keepTrading = true;
+                            break;
                         }
-                        break;
                     }
+                    if (needed != ResourceType.CAPITAL) {
+                        int buyPrice = market.getBuyPrice(needed);
+                        if (bot.getResource(ResourceType.CAPITAL) >= buyPrice) {
+                            bot.spendResource(ResourceType.CAPITAL, buyPrice);
+                            bot.addResource(needed, 1);
+                            log("🔄 Market Trade: Bot " + bot.getName() + " spent " + buyPrice + " Capital to buy 1 " + needed + ".");
+                            keepTrading = true;
+                        }
+                    }
+                }
+                if (keepTrading) break;
+            }
+        }
+
+        // 🦄 ۲. اولویت اول -> تلاش برای ارتقا به یونی‌کورن
+        if (bot.getResource(ResourceType.DATA) >= 3 && bot.getResource(ResourceType.CLOUD) >= 2) {
+            Vertex mvpVertex = findBotMvpToUpgrade(bot);
+            if (mvpVertex != null) {
+                try {
+                    upgradeToUnicorn(bot, mvpVertex);
+                    log("🦄✨ VALUATION SPIKE: Bot " + bot.getName() + " upgraded an MVP to a Tech Unicorn!");
+                    nextTurn();
+                    return;
+                } catch (Exception e) {
+                    log("⚠️ Bot failed to upgrade Unicorn: " + e.getMessage());
                 }
             }
         }
 
-        // 🏗️ ۲. فاز ساخت و ساز پس از تریدهای احتمالی مارکت
+        // 🏢 ۳. اولویت دوم -> ساخت سازه MVP
         boolean canAffordMVP = bot.getResource(ResourceType.CAPITAL) >= 1 &&
                 bot.getResource(ResourceType.TALENT) >= 1 &&
                 bot.getResource(ResourceType.CLOUD) >= 1 &&
@@ -602,64 +688,65 @@ public class GameEngine implements Serializable {
             if (targetVertex != null) {
                 try {
                     buildMVP(bot, targetVertex);
+                    nextTurn();
+                    return;
                 } catch (Exception e) {
                     log("⚠️ Bot failed to build MVP: " + e.getMessage());
                 }
             } else {
-                log("🤖 Bot " + bot.getName() + " couldn't find a valid connected vertex to expand.");
+                log("🤖 Bot " + bot.getName() + " has resources for MVP but no valid vertex. Expanding network...");
+                tryToBuildBotPartnership(bot);
             }
         } else {
-            log("🤖 Bot " + bot.getName() + " decided to hold assets for the next round.");
+            // 🛣️ ۴. اولویت سوم -> مدیریت هوشمند جاده‌کشی برای پیشروی رندوم
+            Vertex nextPossibleVertex = findRandomValidVertexForNormal(bot);
+            if (nextPossibleVertex == null) {
+                tryToBuildBotPartnership(bot);
+            } else {
+                log("🤖 Bot " + bot.getName() + " holds resources to save up for an MVP.");
+            }
         }
 
         nextTurn();
     }
-    // 🔍 پیدا کردن اولین راس خالی و قانونی روی نقشه داخلی
-// 🔍 پیدا کردن یک رأس کاملاً تصادفی و قانونی برای فاز ست‌آپ اولیه
-    private Vertex findRandomValidVertexForSetup() {
-        List<Vertex> validVertices = new ArrayList<>();
-        Vertex[][] vertices = this.gameMap.getVertices();
 
-        for (int r = 0; r < vertices.length; r++) {
-            for (int c = 0; c < vertices[r].length; c++) {
-                Vertex v = vertices[r][c];
-                if (v != null && isValidStructurePlacement(v)) {
-                    validVertices.add(v);
-                }
-            }
-        }
+    // 🔍 متد کمکی: مدیریت ترید مارکت اختصاصی جاده و پیشروی رندوم ربات در سراسر مپ
+    private void tryToBuildBotPartnership(SimpleBot bot) {
+        ResourceType[] requiredForRoad = {ResourceType.CAPITAL, ResourceType.PATENT};
+        for (ResourceType needed : requiredForRoad) {
+            while (bot.getResource(needed) < 1) {
+                boolean traded = false;
+                for (ResourceType surplus : ResourceType.values()) {
+                    if (surplus != needed && bot.getResource(surplus) >= 3) {
+                        int sellPrice = market.getSellPrice(surplus);
+                        bot.spendResource(surplus, 1);
+                        bot.addResource(ResourceType.CAPITAL, sellPrice);
+                        log("🔄 Road Trade: Bot " + bot.getName() + " sold 1 " + surplus + " for " + sellPrice + " Capital.");
 
-        if (validVertices.isEmpty()) return null;
-        // انتخاب تصادفی از بین تمام گزینه‌های قانونی نقشه
-        return validVertices.get(new java.util.Random().nextInt(validVertices.size()));
-    }
-
-    // 🧠 پیدا کردن یک رأس تصادفی که حتماً به شبکه جاده‌های خودِ ربات متصل باشد (قانون فاز نرمال کاتان)
-    private Vertex findRandomValidVertexForNormal(Player bot) {
-        List<Vertex> connectedVertices = new ArrayList<>();
-        Vertex[][] vertices = this.gameMap.getVertices();
-
-        for (int r = 0; r < vertices.length; r++) {
-            for (int c = 0; c < vertices[r].length; c++) {
-                Vertex v = vertices[r][c];
-                if (v != null && isValidStructurePlacement(v)) {
-                    // بررسی اینکه آیا این گره به حداقل یکی از جاده‌های این ربات متصل است؟
-                    boolean isConnected = false;
-                    for (Edge edge : v.getNeighboringEdges()) {
-                        if (edge != null && bot.equals(edge.getOwner())) {
-                            isConnected = true;
-                            break;
+                        if (needed == ResourceType.PATENT) {
+                            int buyPrice = market.getBuyPrice(ResourceType.PATENT);
+                            if (bot.getResource(ResourceType.CAPITAL) >= buyPrice) {
+                                bot.spendResource(ResourceType.CAPITAL, buyPrice);
+                                bot.addResource(ResourceType.PATENT, 1);
+                                log("🔄 Road Trade: Bot " + bot.getName() + " spent " + buyPrice + " Capital to buy 1 PATENT.");
+                            }
                         }
-                    }
-                    if (isConnected) {
-                        connectedVertices.add(v);
+                        traded = true;
+                        break;
                     }
                 }
+                if (!traded) break;
             }
         }
 
-        if (connectedVertices.isEmpty()) return null;
-        return connectedVertices.get(new java.util.Random().nextInt(connectedVertices.size()));
+        Edge targetEdge = findRandomValidEdgeForBot(bot);
+        if (targetEdge != null) {
+            try {
+                buildPartnership(bot, targetEdge);
+                log("🛣️ Bot " + bot.getName() + " established a new Partnership path!");
+            } catch (Exception e) {
+                log("⚠️ Bot failed to build Partnership: " + e.getMessage());
+            }
+        }
     }
-
 }
