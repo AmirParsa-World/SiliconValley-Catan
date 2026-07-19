@@ -67,15 +67,28 @@ public class MarketPane extends HBox {
         update();
     }
 
+    // 🔮 متد کمکی برای استخراج نام تمیز و خالص منبع به جای اسم سکتور
+    private String getCleanResourceName(ResourceType type) {
+        switch (type) {
+            case DATA:    return "Data";
+            case PATENT:  return "Patent";
+            case CLOUD:   return "Cloud";
+            case CAPITAL: return "Capital";
+            case TALENT:  return "Talent";
+            default:      return type.toString();
+        }
+    }
+
     private VBox createResourceColumn(int index) {
         ResourceType type = TRADEABLE[index];
+        String cleanName = getCleanResourceName(type);
 
-        Label nameLabel = new Label(type.getDisplayName());
-        nameLabel.setFont(Font.font("Arial", FontWeight.BOLD, 10));
+        // 🎯 اینجا به جای اسم سکتور، اسم خالص منبع قرار گرفت
+        Label nameLabel = new Label(cleanName);
+        nameLabel.setFont(Font.font("Arial", FontWeight.BOLD, 11));
         nameLabel.setWrapText(true);
         nameLabel.setMaxWidth(70);
 
-        // 🎨 اضافه شدن اندیکاتور رنگی هماهنگ با نقشه و لژند به مارکت
         Rectangle colorBar = new Rectangle(10, 10);
         colorBar.setArcWidth(3);
         colorBar.setArcHeight(3);
@@ -83,7 +96,7 @@ public class MarketPane extends HBox {
         colorBar.setStroke(Color.web("#555555"));
         colorBar.setStrokeWidth(0.8);
 
-        HBox header = new HBox(4, colorBar, nameLabel);
+        HBox header = new HBox(5, colorBar, nameLabel);
         header.setAlignment(Pos.CENTER);
 
         priceLabels[index] = new Label();
@@ -97,7 +110,7 @@ public class MarketPane extends HBox {
         buyButtons[index].setPrefHeight(22);
         buyButtons[index].setFont(Font.font("Arial", FontWeight.NORMAL, 10));
         buyButtons[index].setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;");
-        buyButtons[index].setTooltip(new Tooltip("Spend CAPITAL to get 1 " + type.getDisplayName()));
+        buyButtons[index].setTooltip(new Tooltip("Spend CAPITAL to get 1 " + cleanName));
         buyButtons[index].setOnAction(e -> buyResource(type));
 
         sellButtons[index] = new Button("Sell");
@@ -105,15 +118,15 @@ public class MarketPane extends HBox {
         sellButtons[index].setPrefHeight(22);
         sellButtons[index].setFont(Font.font("Arial", FontWeight.NORMAL, 10));
         sellButtons[index].setStyle("-fx-background-color: #e53935; -fx-text-fill: white;");
-        sellButtons[index].setTooltip(new Tooltip("Give 1 " + type.getDisplayName() + " to get CAPITAL"));
+        sellButtons[index].setTooltip(new Tooltip("Give 1 " + cleanName + " to get CAPITAL"));
         sellButtons[index].setOnAction(e -> sellResource(type));
 
         HBox buttons = new HBox(4, buyButtons[index], sellButtons[index]);
         buttons.setAlignment(Pos.CENTER);
 
-        VBox col = new VBox(2, header, priceLabels[index], ownedLabels[index], buttons);
+        VBox col = new VBox(4, header, priceLabels[index], ownedLabels[index], buttons);
         col.setAlignment(Pos.CENTER);
-        col.setPadding(new Insets(4));
+        col.setPadding(new Insets(5));
         col.setStyle("-fx-background-color: #e8e8e8; -fx-background-radius: 4;");
         col.setPrefWidth(85);
 
@@ -128,7 +141,7 @@ public class MarketPane extends HBox {
         try {
             market.buyResource(current, type, engine);
             int price = market.getPrice(type);
-            app.getActionPane().updateStatus("Bought 1 " + type.getDisplayName() + "\nfor " + price + " CAPITAL");
+            app.getActionPane().updateStatus("Bought 1 " + getCleanResourceName(type) + "\nfor " + price + " CAPITAL");
             app.updateUI();
         } catch (Exception e) {
             app.getActionPane().updateStatus("Can't buy: " + e.getMessage());
@@ -143,7 +156,7 @@ public class MarketPane extends HBox {
         try {
             market.sellResource(current, type, engine);
             int price = market.getPrice(type);
-            app.getActionPane().updateStatus("Sold 1 " + type.getDisplayName() + "\nfor " + price + " CAPITAL");
+            app.getActionPane().updateStatus("Sold 1 " + getCleanResourceName(type) + "\nfor " + price + " CAPITAL");
             app.updateUI();
         } catch (Exception e) {
             app.getActionPane().updateStatus("Can't sell: " + e.getMessage());
@@ -155,11 +168,6 @@ public class MarketPane extends HBox {
         boolean canTrade = engine.getCurrentPhase() == GamePhase.NORMAL
                 && !(current instanceof SimpleBot)
                 && engine.hasRolledThisTurn();
-
-        System.out.println("MarketPane update: phase=" + engine.getCurrentPhase()
-                + ", isBot=" + (current instanceof SimpleBot)
-                + ", hasRolled=" + engine.hasRolledThisTurn()
-                + ", canTrade=" + canTrade);
 
         if (canTrade) {
             hintLabel.setText("Trading enabled - buy/sell resources!");
@@ -177,6 +185,7 @@ public class MarketPane extends HBox {
 
         for (int i = 0; i < TRADEABLE.length; i++) {
             ResourceType type = TRADEABLE[i];
+            String cleanName = getCleanResourceName(type);
 
             int price = market.getPrice(type);
             priceLabels[i].setText(String.valueOf(price) + " C");
@@ -198,13 +207,13 @@ public class MarketPane extends HBox {
                 buyButtons[i].setOpacity(canTrade ? 1.0 : 0.5);
                 sellButtons[i].setOpacity(canTrade ? 1.0 : 0.5);
 
-                String buyTip = "Buy 1 " + type.getDisplayName() + " for " + price + " CAPITAL";
+                String buyTip = "Buy 1 " + cleanName + " for " + price + " CAPITAL";
                 if (current.getResource(ResourceType.CAPITAL) < price) {
                     buyTip += " (need " + (price - current.getResource(ResourceType.CAPITAL)) + " more CAPITAL)";
                 }
                 Tooltip.install(buyButtons[i], new Tooltip(buyTip));
 
-                String sellTip = "Sell 1 " + type.getDisplayName() + " for " + price + " CAPITAL";
+                String sellTip = "Sell 1 " + cleanName + " for " + price + " CAPITAL";
                 if (owned < 1) {
                     sellTip += " (need at least 1)";
                 }
@@ -219,14 +228,13 @@ public class MarketPane extends HBox {
         return Color.BLACK;
     }
 
-    // 🎨 متد هماهنگ‌سازی سراسری رنگ مارکت با مپ بازی
     private Color getResourceColor(ResourceType type) {
         switch (type) {
-            case TALENT:  return Color.web("#90EE90"); // سبز
-            case CAPITAL: return Color.web("#FFD700"); // زرد
-            case CLOUD:   return Color.web("#87CEEB"); // آبی
-            case PATENT:  return Color.web("#D3D3D3"); // خاکستری
-            case DATA:    return Color.web("#FFB6C1"); // صورتی
+            case TALENT:  return Color.web("#90EE90");
+            case CAPITAL: return Color.web("#FFD700");
+            case CLOUD:   return Color.web("#87CEEB");
+            case PATENT:  return Color.web("#D3D3D3");
+            case DATA:    return Color.web("#FFB6C1");
             default:      return Color.GRAY;
         }
     }

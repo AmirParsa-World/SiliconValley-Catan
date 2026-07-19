@@ -97,6 +97,7 @@ public class ActionPane extends VBox {
     }
 
     // 🔮 متد کمکی برای خلق کارت راهنمای رنگ‌ها با یوآی کاملاً مدرن و خوانا
+// 🔮 متد اصلاح‌شده برای خلق کارت راهنما با چیدمان کاملاً متراکم و قرینه
     private VBox createLegendBox() {
         VBox box = new VBox(6);
         box.setStyle("-fx-padding: 10; -fx-background-color: #ffffff; -fx-background-radius: 6; -fx-border-color: #ddd; -fx-border-radius: 6; -fx-margin-top: 10;");
@@ -106,13 +107,13 @@ public class ActionPane extends VBox {
         titleLabel.setStyle("-fx-text-fill: #333;");
         box.getChildren().add(titleLabel);
 
-        // داده‌های سکتورها: {نام، کد رنگ هگز}
+        // 🎯 چیدمان برعکس شد؛ دیتا بالا آمد و رگیولیتوری زون دقیقاً همان پایین حفظ شد
         String[][] sectorsInfo = {
-                {"Talent (AI Hub)", "#90EE90"},
-                {"Capital (Fintech)", "#FFD700"},
-                {"Cloud (Campus)", "#87CEEB"},
-                {"Patent (IP Quarter)", "#D3D3D3"},
                 {"Data (Valley)", "#FFB6C1"},
+                {"Patent (IP Quarter)", "#D3D3D3"},
+                {"Cloud (Campus)", "#87CEEB"},
+                {"Capital (Fintech)", "#FFD700"},
+                {"Talent (AI Hub)", "#90EE90"},
                 {"Regulatory Zone", "#FFA07A"}
         };
 
@@ -127,6 +128,7 @@ public class ActionPane extends VBox {
             colorIndicator.setFill(Color.web(info[1]));
             colorIndicator.setStroke(Color.web("#555555"));
             colorIndicator.setStrokeWidth(1);
+
             Label nameLabel = new Label(info[0]);
             nameLabel.setFont(Font.font("Arial", FontWeight.SEMI_BOLD, 11));
             nameLabel.setStyle("-fx-text-fill: #444;");
