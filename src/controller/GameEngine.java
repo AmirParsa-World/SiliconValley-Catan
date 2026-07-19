@@ -226,6 +226,10 @@ public class GameEngine implements Serializable {
         }
 
         log("🎲 Dice rolled: " + rollValue + ". Distributing resources...");
+        java.util.Map<Player, Integer> yields = new java.util.HashMap<>();
+
+        // 🛡️ مجموعه کمکی برای ثبت گره‌هایی که در این نوبت کارت تولید کرده‌اند (جلوگیری از واریز دوگانه)
+        java.util.Set<Vertex> processedVertices = new java.util.HashSet<>();
 
         for (Sector[] row : this.gameMap.getSectors()) {
             for (Sector sector : row) {
@@ -246,17 +250,28 @@ public class GameEngine implements Serializable {
                                 continue;
                             }
 
+                            // 🎯 گام طلایی: اگر این گره قبلاً در همین نوبت کارت تولید کرده، آن را رد کن!
+                            if (processedVertices.contains(vertex)) {
+                                continue;
+                            }
+
                             Player owner = vertex.getOwner();
                             int yield = (vertex.getStructure().getPoint() == 2) ? 2 : 1;
 
                             owner.addResource(resource, yield);
                             log("📦 " + owner.getName() + " earned " + yield + " " + resource + " from Sector " + rollValue);
+
+                            // ثبت آمار برای خروجی نهایی
+                            yields.put(owner, yields.getOrDefault(owner, 0) + yield);
+
+                            // 🔒 قفل کردن گره برای باقی‌مانده این دور از محاسبات تاس
+                            processedVertices.add(vertex);
                         }
                     }
                 }
             }
         }
-        return null;
+        return yields; // برگرداندن مپ توزیع به جای null برای صحت لاگ‌های فرانت‌اند
     }
 
     public int calculateLongestNetwork(Player player) {

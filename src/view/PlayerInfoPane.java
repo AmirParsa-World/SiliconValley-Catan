@@ -116,9 +116,15 @@ public class PlayerInfoPane extends VBox {
                 Player player = players.get(i);
                 boolean isCurrent = player.equals(current);
 
+                // 🎯 استخراج لیبل نام بازیکن
                 Label nameLabel = (Label) card.getChildren().get(0);
-                String longNet = player.isHasLongestNetwork() ? " [CROWN]" : "";
-                nameLabel.setText(player.getName() + longNet);
+
+                // 👑 اعمال افکت تاج درخشان و نمایش پویای طول جاده‌ها
+                if (player.isHasLongestNetwork()) {
+                    nameLabel.setText(player.getName() + " 👑 (Road: " + engine.calculateLongestNetwork(player) + ")");
+                } else {
+                    nameLabel.setText(player.getName());
+                }
                 nameLabel.setTextFill(getPlayerColor(player));
 
                 Label roleLabel = (Label) card.getChildren().get(1);

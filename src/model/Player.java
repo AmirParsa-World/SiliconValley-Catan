@@ -87,17 +87,26 @@ public class Player implements Serializable {
 
     // 🏆 محاسبه داینامیک امتیاز کل بازیکن (با احتساب نقش‌ها و جاده‌ها)
     public int countPlayerPoint() {
-        int totalPoint = (this.role != null && this.role != FounderRole.NONE) ? -1 : 0;
+        int points = 0;
 
-        // اعمال امتیاز بابت داشتن طولانی‌ترین شبکه ارتباطی
+        // 🏢 ۱. محاسبه امتیاز حاصل از سازه‌ها (تغییر CompanyStructure به Structure)
+        if (this.structures != null) {
+            for (Structure structure : this.structures) { // 👈 این خط اصلاح شد
+                points += structure.getPoint();
+            }
+        }
+
+        // 🛣️ ۲. محاسبه امتیاز بابت داشتن بزرگترین شبکه (پاداش جاده‌ها)
         if (this.hasLongestNetwork) {
-            totalPoint += 2;
+            points += 2; // امتیاز بابت Longest Network
         }
 
-        for (Structure structure : this.structures) {
-            totalPoint += structure.getPoint();
+        // 🎯 گام طلایی: کسر ۱ امتیاز در صورت انتخاب هر نقشی بجای NONE
+        if (this.role != null && this.role != FounderRole.NONE) {
+            points -= 1;
         }
-        return totalPoint;
+
+        return points;
     }
 
     @Override

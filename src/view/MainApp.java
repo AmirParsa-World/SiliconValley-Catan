@@ -552,8 +552,45 @@ public class MainApp extends Application {
         if (!(current instanceof SimpleBot)) return;
 
         SimpleBot bot = (SimpleBot) current;
-        if (bot.getRole() == null) {
-            bot.setRole(FounderRole.NONE);
+
+        // 🎲 انتخاب هوشمندانه و رندوم نقش بر اساس ظرفیت باقی‌مانده در بازار
+        if (bot.getRole() == null || bot.getRole() == FounderRole.NONE) {
+
+            // ۱. پیدا کردن تمام نقش‌هایی که تا این لحظه توسط بقیه (انسان یا بات) گرفته شده است
+            List<FounderRole> takenRoles = new ArrayList<>();
+            for (Player p : engine.getPlayers()) {
+                if (p != bot && p.getRole() != null && p.getRole() != FounderRole.NONE) {
+                    takenRoles.add(p.getRole());
+                }
+            }
+
+            // ۲. تشکیل لیست نقش‌های استارتاپیِ آزاد و باقی‌مانده
+            List<FounderRole> availableRoles = new ArrayList<>();
+            for (FounderRole r : FounderRole.values()) {
+                if (r != FounderRole.NONE && !takenRoles.contains(r)) {
+                    availableRoles.add(r);
+                }
+            }
+
+            // ۳. تصمیم‌گیری نهایی ربات
+            if (availableRoles.isEmpty()) {
+                // سناریوی نفر چهارم: اگر هیچ نقش منحصربه‌فردی باقی نمانده باشد
+                bot.setRole(FounderRole.NONE);
+                engine.log("🎭 STRATEGY: No unique roles left in Tech Park. Bot " + bot.getName() + " started with FounderRole.NONE.");
+            } else {
+                // ربات شانس این را دارد که یا یک نقش باقی‌مانده را بردارد یا اصلاً نقشی برندارد (NONE) تا امتیاز منفی نخورد
+                List<FounderRole> pool = new ArrayList<>(availableRoles);
+                pool.add(FounderRole.NONE);
+
+                FounderRole chosenRole = pool.get(new java.util.Random().nextInt(pool.size()));
+                bot.setRole(chosenRole);
+
+                if (chosenRole != FounderRole.NONE) {
+                    engine.log("🎭 STRATEGY: Bot " + bot.getName() + " claimed the available role: " + chosenRole + " (-1 Point applied).");
+                } else {
+                    engine.log("🎭 STRATEGY: Bot " + bot.getName() + " decided to remain roleless (NONE) to preserve starting points.");
+                }
+            }
         }
 
         actionPane.updateStatus(bot.getName() + " (BOT)\nis setting up...");
